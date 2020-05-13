@@ -56,10 +56,16 @@
   NSTimeInterval timeoutInterval = 30.0;
   NSTimeInterval activityLabelTimer = 10.0;
 
-  NSURLRequest *const request = [NSURLRequest requestWithURL:self.URL
-                                                 cachePolicy:NSURLRequestUseProtocolCachePolicy
-                                             timeoutInterval:timeoutInterval];
-  
+    NSMutableURLRequest *const request = [[NSURLRequest requestWithURL:self.URL
+                                                           cachePolicy:NSURLRequestUseProtocolCachePolicy
+                                                       timeoutInterval:timeoutInterval] mutableCopy];
+
+    if([[NYPLUserAccount sharedAccount] hasAuthToken])
+    {
+        NSString *authValue = [NSString stringWithFormat:@"Bearer %@", [[NYPLUserAccount sharedAccount] authToken]];
+        [request setValue:authValue forHTTPHeaderField:@"Authorization"];
+    }
+
   self.activityIndicatorLabel.hidden = YES;
   [NSTimer scheduledTimerWithTimeInterval: activityLabelTimer target: self
                                  selector: @selector(addActivityIndicatorLabel:) userInfo: nil repeats: NO];

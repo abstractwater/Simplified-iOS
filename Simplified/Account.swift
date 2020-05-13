@@ -10,6 +10,7 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
     case basic = "http://opds-spec.org/auth/basic"
     case coppa = "http://librarysimplified.org/terms/authentication/gate/coppa"
     case anonymous = "http://librarysimplified.org/rel/auth/anonymous"
+    case oauthIntermediary = "http://librarysimplified.org/authtype/OAuth-with-intermediary"
     case none
   }
   
@@ -24,7 +25,8 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
     let supportsBarcodeDisplay:Bool
     let coppaUnderUrl:URL?
     let coppaOverUrl:URL?
-    
+    let oauthIntermediaryUrl:URL?
+
     init(auth: OPDS2AuthenticationDocument.Authentication) {
       authType = AuthType(rawValue: auth.type) ?? .none
       authPasscodeLength = auth.inputs?.password.maximumLength ?? 99
@@ -35,7 +37,8 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
       supportsBarcodeScanner = auth.inputs?.login.barcodeFormat == "Codabar"
       supportsBarcodeDisplay = supportsBarcodeScanner
       coppaUnderUrl = URL.init(string: auth.links?.first(where: { $0.rel == "http://librarysimplified.org/terms/rel/authentication/restriction-not-met" })?.href ?? "")
-      coppaOverUrl = URL.init(string: auth.links?.first(where: { $0.rel == "http://librarysimplified.org/terms/rel/authentication/restriction-met" })?.href ?? "")
+        coppaOverUrl = URL.init(string: auth.links?.first(where: { $0.rel == "http://librarysimplified.org/terms/rel/authentication/restriction-met" })?.href ?? "")
+        oauthIntermediaryUrl = URL.init(string: auth.links?.first(where: { $0.rel == "authenticate" })?.href ?? "")
     }
   }
   
@@ -80,7 +83,11 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
   }
   
   var coppaOverUrl: URL? {
-    return auths.first?.coppaOverUrl
+      return auths.first?.coppaOverUrl
+  }
+
+  var oauthIntermediaryUrl: URL? {
+      return auths.first?.oauthIntermediaryUrl
   }
 
   var patronIDLabel: String? {
@@ -92,7 +99,7 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
   }
   
   var needsAuth:Bool {
-    return authType == .basic
+    return authType == .basic || authType == .oauthIntermediary
   }
   
   var needsAgeCheck:Bool {

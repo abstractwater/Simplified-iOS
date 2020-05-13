@@ -35,7 +35,7 @@ class NYPLSignInBusinessLogic: NSObject {
   }
 
   @objc func isSignedIn() -> Bool {
-    return userAccount.hasBarcodeAndPIN()
+    return userAccount.hasCredentials()
   }
 
   @objc func registrationIsPossible() -> Bool {
@@ -64,7 +64,7 @@ class NYPLSignInBusinessLogic: NSObject {
 
     return libraryDetails.supportsSimplyESync &&
       libraryDetails.getLicenseURL(.annotations) != nil &&
-      userAccount.hasBarcodeAndPIN() &&
+      userAccount.hasCredentials() &&
       libraryAccountID == AccountsManager.shared.currentAccount?.uuid
   }
 
@@ -123,4 +123,67 @@ class NYPLSignInBusinessLogic: NSObject {
       self.permissionsCheckLock.unlock()
     }
   }
+
+    @objc func handleRedirectURL(url: URL) {
+
+        if(!url.absoluteString.hasPrefix("open-ebooks-clever")
+            || !(url.absoluteString.contains("error") || url.absoluteString.contains("access_token")))
+        {
+            // The server did not give us what we expected (e.g. we received a 500),
+            // thus we show an error message and stop handling the result.
+
+//            self.showErrorMessage(nil)
+            return
+        }
+
+        let fragment = url.fragment
+        var kvpairs:[String:String] = [String:String]()
+        let components = fragment?.components(separatedBy: "&")
+        for component in components!
+        {
+            var kv = component.components(separatedBy: "=")
+            if kv.count == 2
+            {
+                kvpairs[kv[0]] = kv[1]
+            }
+        }
+
+        if let error = kvpairs["error"]
+        {
+            if let errorJson = error.replacingOccurrences(of: "+", with: " ").removingPercentEncoding?.parseJSONString
+            {
+                debugPrint(errorJson)
+
+//                self.showErrorMessage((errorJson as? [String : Any])?["title"] as? String)
+
+            }
+        }
+
+        if let auth_token = kvpairs["access_token"],
+            let patron_info = kvpairs["patron_info"]
+        {
+            if let patronJson = patron_info.replacingOccurrences(of: "+", with: " ").removingPercentEncoding?.parseJSONString
+            {
+                
+            }
+        }
+    }
+
+
+}
+
+extension NSString {
+
+    @objc var parseJSONString: AnyObject? {
+
+        let data = self.data(using: String.Encoding.utf8.rawValue, allowLossyConversion: false)
+
+        if let jsonData = data {
+            // Will return an object or nil if JSON decoding fails
+            return try! JSONSerialization.jsonObject(with: jsonData, options: JSONSerialization.ReadingOptions.mutableContainers) as AnyObject?
+        } else {
+            // Lossless conversion of the string was not possible
+            return nil
+        }
+    }
 }

@@ -372,7 +372,7 @@ OK:
 {
   Account *const account = [AccountsManager shared].currentAccount;
   if (account.details.needsAuth) {
-    if([[NYPLUserAccount sharedAccount] hasBarcodeAndPIN]) {
+    if([[NYPLUserAccount sharedAccount] hasCredentials]) {
       [[NYPLBookRegistry sharedRegistry] syncWithStandardAlertsOnCompletion];
     } else {
       [NYPLAccountSignInViewController requestCredentialsUsingExistingBarcode:NO completionHandler:nil];

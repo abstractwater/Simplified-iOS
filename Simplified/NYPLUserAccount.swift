@@ -154,7 +154,8 @@ extension Notification.Name {
     
     return nil
   }
-    
+
+    // szyjson set token here
   var authToken: String? {
     return NYPLKeychain.shared()?.object(forKey: authTokenKey) as? String
   }

@@ -253,7 +253,7 @@ CGFloat const marginPadding = 2.0;
 {
   [super viewDidAppear:animated];
   if (![[NYPLADEPT sharedInstance] isUserAuthorized:[[NYPLUserAccount sharedAccount] userID] withDevice:[[NYPLUserAccount sharedAccount] deviceID]]) {
-    if ([[NYPLUserAccount sharedAccount] hasBarcodeAndPIN] && !self.isCurrentlySigningIn) {
+    if ([[NYPLUserAccount sharedAccount] hasCredentials] && !self.isCurrentlySigningIn) {
       self.usernameTextField.text = [NYPLUserAccount sharedAccount].barcode;
       self.PINTextField.text = [NYPLUserAccount sharedAccount].PIN;
       [self logIn];
@@ -573,7 +573,7 @@ completionHandler:(void (^)(void))handler
       animated:YES
       completion:nil];
 
-    if (authorizeImmediately && [NYPLUserAccount sharedAccount].hasBarcodeAndPIN) {
+    if (authorizeImmediately && [NYPLUserAccount sharedAccount].hasCredentials) {
       accountViewController.PINTextField.text = [NYPLUserAccount sharedAccount].PIN;
       [accountViewController logIn];
     } else {
@@ -706,7 +706,7 @@ completionHandler:(void (^)(void))handler
 - (void)accountDidChange
 {
   [[NSOperationQueue mainQueue] addOperationWithBlock:^{
-    if([NYPLUserAccount sharedAccount].hasBarcodeAndPIN) {
+    if([NYPLUserAccount sharedAccount].hasCredentials) {
       self.usernameTextField.text = [NYPLUserAccount sharedAccount].barcode;
       self.usernameTextField.enabled = NO;
       self.usernameTextField.textColor = [UIColor grayColor];
@@ -738,7 +738,7 @@ completionHandler:(void (^)(void))handler
   if (self.isCurrentlySigningIn) {
     return;
   }
-  if([[NYPLUserAccount sharedAccount] hasBarcodeAndPIN]) {
+  if([[NYPLUserAccount sharedAccount] hasCredentials]) {
     self.logInSignOutCell.textLabel.text = NSLocalizedString(@"SignOut", nil);
     self.logInSignOutCell.textLabel.textAlignment = NSTextAlignmentCenter;
     self.logInSignOutCell.textLabel.textColor = [NYPLConfiguration mainColor];

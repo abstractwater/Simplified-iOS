@@ -68,6 +68,7 @@ typedef NS_ENUM(NSInteger, CellKind) {
 // account state
 @property NYPLUserAccountFrontEndValidation *frontEndValidator;
 @property (nonatomic) NYPLSignInBusinessLogic *businessLogic;
+@property (nonatomic) NSString *authToken;
 
 // networking
 @property (nonatomic) NSURLSession *session;
@@ -295,6 +296,8 @@ static const NSInteger sSection1Sync = 1;
     section0AcctInfo = @[@(CellKindAgeCheck)].mutableCopy;
   } else if (!self.selectedAccount.details.needsAuth) {
     section0AcctInfo = [NSMutableArray new];
+  } else if (self.selectedAccount.details.oauthIntermediaryUrl != nil) {
+    section0AcctInfo = @[@(CellKindLogInSignOut)].mutableCopy;
   } else if (self.selectedAccount.details.pinKeyboard != LoginKeyboardNone) {
     section0AcctInfo = @[@(CellKindBarcode), @(CellKindPIN), @(CellKindLogInSignOut)].mutableCopy;
   } else {
@@ -398,18 +401,115 @@ static const NSInteger sSection1Sync = 1;
 
 - (void)logIn
 {
-  assert(self.usernameTextField.text.length > 0);
-  assert(self.PINTextField.text.length > 0 || [self.PINTextField.text isEqualToString:@""]);
-  
-  [self.usernameTextField resignFirstResponder];
-  [self.PINTextField resignFirstResponder];
-  
-  [self setActivityTitleWithText:NSLocalizedString(@"Verifying", nil)];
-  
-  [[UIApplication sharedApplication] beginIgnoringInteractionEvents];
-  
-  [self validateCredentials];
+  if (self.selectedAccount.details.oauthIntermediaryUrl != nil) {
+    // oauth
+    NSURL *oauthURL = self.selectedAccount.details.oauthIntermediaryUrl;
+
+    NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:oauthURL resolvingAgainstBaseURL:true];
+
+    // add params
+    NSURLQueryItem *redirect_uri = [[NSURLQueryItem alloc] initWithName:@"redirect_uri" value:@"https://skyneck.pl/login"];
+    urlComponents.queryItems = [urlComponents.queryItems arrayByAddingObject:redirect_uri];
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleRedirectURL:)
+                                                 name: @"NYPLAppDelegateDidReceiveCleverRedirectURL"
+                                               object:nil];
+
+    [UIApplication.sharedApplication openURL: urlComponents.URL];
+    [[UIApplication sharedApplication] beginIgnoringInteractionEvents];
+  } else {
+    // bar and pin
+    assert(self.usernameTextField.text.length > 0);
+    assert(self.PINTextField.text.length > 0 || [self.PINTextField.text isEqualToString:@""]);
+
+    [self.usernameTextField resignFirstResponder];
+    [self.PINTextField resignFirstResponder];
+
+    [self setActivityTitleWithText:NSLocalizedString(@"Verifying", nil)];
+
+    [[UIApplication sharedApplication] beginIgnoringInteractionEvents];
+
+    [self validateCredentials];
+  }
 }
+
+- (void) handleRedirectURL: (NSNotification *) notification
+{
+  [NSNotificationCenter.defaultCenter removeObserver: self name: @"NYPLAppDelegateDidReceiveCleverRedirectURL" object: nil];
+
+  NSURL *url = notification.object;
+  if (![url.absoluteString hasPrefix:@"https://skyneck.pl/login"]
+      || !([url.absoluteString containsString:@"error"] || [url.absoluteString containsString:@"access_token"]))
+  {
+    [self displayErrorMessage:nil];
+    return;
+  }
+
+  NSMutableDictionary *kvpairs = [[NSMutableDictionary alloc] init];
+  for (NSString *param in [url.fragment componentsSeparatedByString:@"&"]) {
+    NSArray *elts = [param componentsSeparatedByString:@"="];
+    if([elts count] < 2) continue;
+    [kvpairs setObject:[elts lastObject] forKey:[elts firstObject]];
+  }
+
+//  if (kvpairs[@"error"] != nil) {
+//    NSString *error = [[kvpairs[@"error"] stringByReplacingOccurrencesOfString:@"+" withString:@" "] stringByRemovingPercentEncoding];
+//
+//
+//    if ([error parseJSONString] != nil) {
+//
+//    }
+////      if let errorJson = error.replacingOccurrences(of: "+", with: " ").removingPercentEncoding?.parseJSONString
+////      {
+////        debugPrint(errorJson)
+////
+////        self.showErrorMessage((errorJson as? [String : Any])?["title"] as? String)
+////
+////      }
+//
+//  }
+
+
+  NSString *auth_token = kvpairs[@"access_token"];
+  NSString *patron_info = kvpairs[@"patron_info"];
+
+  if (auth_token != nil && patron_info != nil) {
+    NSString *patron = [[patron_info stringByReplacingOccurrencesOfString:@"+" withString:@" "] stringByRemovingPercentEncoding];
+
+    if ([patron parseJSONString] != nil) {
+      self.authToken = auth_token;
+      [self validateCredentials];
+    }
+
+//    if let patronJson = patron_info.replacingOccurrences(of: "+", with: " ").removingPercentEncoding?.parseJSONString
+//    {
+//      var request = URLRequest(url: NYPLConfiguration.circulationURL().appendingPathComponent("AdobeAuth/authdata"))
+//      request.httpMethod = "GET"
+//      request.setValue("Bearer \(auth_token)", forHTTPHeaderField: "Authorization")
+//
+//      let dataTask = URLSession.shared.dataTask(with: request, completionHandler: { (data, response, error) in
+//        if let stringData = data
+//        {
+//          if let adobe_token:String = NSString(data: stringData, encoding: String.Encoding.utf8.rawValue) as String?
+//          {
+//            self.cleverAuth = (auth_token,patronJson,adobe_token)
+//
+//            debugPrint(auth_token)
+//            debugPrint(adobe_token)
+//            debugPrint(patronJson)
+//
+//            self.validateCredentials()
+//          }
+//        }
+//      })
+//      dataTask.resume()
+//    }
+  }
+
+}
+
+
 
 - (void)logOut
 {
@@ -481,7 +581,7 @@ static const NSInteger sSection1Sync = 1;
   } else {
     [[NYPLMyBooksDownloadCenter sharedDownloadCenter] reset:self.selectedAccountId];
     [[NYPLBookRegistry sharedRegistry] reset:self.selectedAccountId];
-    [[NYPLAccount sharedAccount:self.selectedAccountId] removeAll];
+    [[NYPLUserAccount sharedAccount:self.selectedAccountId] removeAll];
     [self setupTableData];
     [self.tableView reloadData];
     [self removeActivityTitle];
@@ -558,6 +658,14 @@ static const NSInteger sSection1Sync = 1;
   [NSMutableURLRequest requestWithURL:[NSURL URLWithString:[[self.selectedAccount details] userProfileUrl]]];
 
   request.timeoutInterval = sRequestTimeoutInterval;
+
+  if (self.selectedAccount.details.oauthIntermediaryUrl != nil) {
+    NSString *authToken = self.authToken;
+    if (authToken != nil) {
+      NSString *authenticationValue = [@"Bearer " stringByAppendingString: authToken];
+      [request addValue:authenticationValue forHTTPHeaderField:@"Authorization"];
+    }
+  }
 
   __weak __auto_type weakSelf = self;
   NSURLSessionDataTask *const task =
@@ -714,7 +822,13 @@ static const NSInteger sSection1Sync = 1;
     [[UIApplication sharedApplication] endIgnoringInteractionEvents];
     
     if (success) {
-      [self.selectedUserAccount setBarcode:self.usernameTextField.text PIN:self.PINTextField.text];
+      // szyjson tu authtoken
+      if (self.selectedAccount.details.oauthIntermediaryUrl != nil) {
+        [self.selectedUserAccount setAuthToken:self.authToken];
+//        [self.selectedUserAccount setPatron:self.patron]; // szyjson
+      } else {
+        [self.selectedUserAccount setBarcode:self.usernameTextField.text PIN:self.PINTextField.text];
+      }
 
       if ([self.selectedAccountId isEqualToString:[AccountsManager shared].currentAccount.uuid]) {
         [[NYPLBookRegistry sharedRegistry] syncWithCompletionHandler:^(BOOL success) {
@@ -775,7 +889,7 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
     case CellKindLogInSignOut: {
       [self.tableView deselectRowAtIndexPath:indexPath animated:YES];
       NSString *logoutString;
-      if([self.selectedUserAccount hasBarcodeAndPIN]) {
+      if([self.selectedUserAccount hasCredentials]) {
         if ([self.businessLogic shouldShowSyncButton] && !self.syncSwitch.on) {
           logoutString = NSLocalizedString(@"SettingsAccountViewControllerLogoutMessageSync", nil);
         } else {
@@ -1376,7 +1490,7 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
 - (void)accountDidChange
 {
   [[NSOperationQueue mainQueue] addOperationWithBlock:^{
-    if(self.selectedUserAccount.hasBarcodeAndPIN) {
+    if(self.selectedUserAccount.hasCredentials) {
       [self checkSyncPermissionForCurrentPatron];
       self.usernameTextField.text = self.selectedUserAccount.barcode;
       self.usernameTextField.enabled = NO;
@@ -1402,7 +1516,7 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
 
 - (void)updateLoginLogoutCellAppearance
 {
-  if([self.selectedUserAccount hasBarcodeAndPIN]) {
+  if([self.selectedUserAccount hasCredentials]) {
     self.logInSignOutCell.textLabel.text = NSLocalizedString(@"SignOut", nil);
     self.logInSignOutCell.textLabel.textAlignment = NSTextAlignmentCenter;
     self.logInSignOutCell.textLabel.textColor = [NYPLConfiguration mainColor];
@@ -1415,7 +1529,8 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
     BOOL const pinHasText = [self.PINTextField.text
                              stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length;
     BOOL const pinIsNotRequired = self.selectedAccount.details.pinKeyboard == LoginKeyboardNone;
-    if((barcodeHasText && pinHasText) || (barcodeHasText && pinIsNotRequired)) {
+    BOOL const oauthLogin = self.selectedAccount.details.oauthIntermediaryUrl != nil;
+    if((barcodeHasText && pinHasText) || (barcodeHasText && pinIsNotRequired) || oauthLogin) {
       self.logInSignOutCell.userInteractionEnabled = YES;
       self.logInSignOutCell.textLabel.textColor = [NYPLConfiguration mainColor];
     } else {

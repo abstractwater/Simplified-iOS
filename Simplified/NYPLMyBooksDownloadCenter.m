@@ -719,7 +719,7 @@ didCompleteWithError:(NSError *)error
       return;
   }
   
-  if([NYPLUserAccount sharedAccount].hasBarcodeAndPIN || !loginRequired) {
+  if([NYPLUserAccount sharedAccount].hasCredentials || !loginRequired) {
     if(state == NYPLBookStateUnregistered || state == NYPLBookStateHolding) {
       // Check out the book
       [self startBorrowForBook:book attemptDownload:YES borrowCompletion:nil];

@@ -97,7 +97,13 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *const)challenge
     [req setHTTPMethod:@"PUT"];
   else
     [req setHTTPMethod:@"GET"];
-  
+
+    if([[NYPLUserAccount sharedAccount] hasAuthToken])
+    {
+        NSString *authValue = [NSString stringWithFormat:@"Bearer %@", [[NYPLUserAccount sharedAccount] authToken]];
+        [req setValue:authValue forHTTPHeaderField:@"Authorization"];
+    }
+
   [[self.session
     dataTaskWithRequest:req
     completionHandler:^(NSData *const data,

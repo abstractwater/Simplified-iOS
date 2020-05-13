@@ -2,6 +2,8 @@
 
 #import "NYPLBasicAuth.h"
 
+// szyjson
+
 void NYPLBasicAuthHandler(NSURLAuthenticationChallenge *const challenge,
                           void (^completionHandler)
                           (NSURLSessionAuthChallengeDisposition disposition,

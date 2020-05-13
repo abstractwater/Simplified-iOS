@@ -60,6 +60,7 @@
                                                            cachePolicy:NSURLRequestUseProtocolCachePolicy
                                                        timeoutInterval:timeoutInterval] mutableCopy];
 
+    // szyjson this makes books list loading possible
     if([[NYPLUserAccount sharedAccount] hasAuthToken])
     {
         NSString *authValue = [NSString stringWithFormat:@"Bearer %@", [[NYPLUserAccount sharedAccount] authToken]];

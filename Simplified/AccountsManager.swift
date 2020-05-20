@@ -83,7 +83,9 @@ private let prodUrlHash = prodUrl.absoluteString.md5().base64EncodedStringUrlSaf
       object: nil
     )
 
-    self.loadCatalogs(completion: {_ in })
+    DispatchQueue.main.async {
+        self.loadCatalogs(completion: {_ in })
+    }
   }
   
   let completionHandlerAccessQueue = DispatchQueue(label: "libraryListCompletionHandlerAccessQueue")
@@ -204,12 +206,12 @@ private let prodUrlHash = prodUrl.absoluteString.md5().base64EncodedStringUrlSaf
 
     NYPLNetworkExecutor.shared.GET(targetUrl) { result in
       switch result {
-      case .success(let data):
+      case .success(let data, _):
         self.loadAccountSetsAndAuthDoc(fromCatalogData: data, key: hash) { success in
           self.callAndClearLoadingCompletionHandlers(key: hash, success)
           NotificationCenter.default.post(name: NSNotification.Name.NYPLCatalogDidLoad, object: nil)
         }
-      case .failure(let error):
+      case .failure(let error, _):
         NYPLErrorLogger.logError(error,
                                  message: "Catalog failed to load from \(targetUrl)")
         self.callAndClearLoadingCompletionHandlers(key: hash, false)

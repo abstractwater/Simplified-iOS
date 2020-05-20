@@ -3,6 +3,7 @@
 
 #import "NYPLCatalogNavigationController.h"
 
+#import "NYPLAccountSignInViewController.h"
 #import "NYPLBookRegistry.h"
 #import "NYPLRootTabBarController.h"
 #import "NYPLMyBooksNavigationController.h"
@@ -205,6 +206,13 @@
         completion();
       });
     }];
+  } else if (account.details.oauthIntermediaryUrl && !NYPLUserAccount.sharedAccount.hasAuthToken) {
+    // sign in
+    [NYPLAccountSignInViewController authorizeUsingIntermediaryWithCompletionHandler:^{
+      dispatch_async(dispatch_get_main_queue(), ^{
+        completion();
+      });
+    }];
   } else {
     if (![NSThread isMainThread]) {
       dispatch_async(dispatch_get_main_queue(), ^{
@@ -302,8 +310,11 @@
   [[NYPLSettings sharedSettings] setUserHasSeenWelcomeScreen:YES];
   [[NYPLBookRegistry sharedRegistry] save];
   [AccountsManager sharedInstance].currentAccount = account;
-  [self updateFeedAndRegistryOnAccountChange];
-  [self dismissViewControllerAnimated:YES completion:nil];
+  [self dismissViewControllerAnimated:YES completion:^{
+    [self updateFeedAndRegistryOnAccountChange];
+  }];
+//  [self updateFeedAndRegistryOnAccountChange];
+//  [self dismissViewControllerAnimated:YES completion:nil];
 }
 
 @end

@@ -281,13 +281,25 @@ static NSString *const RecordsKey = @"records";
       }];
       return;
     } else if (![[NYPLUserAccount sharedAccount] hasCredentials]) {
-      NYPLLOG(@"[syncWithCompletionHandler] No barcode and PIN");
-      [[NSOperationQueue mainQueue] addOperationWithBlock:^{
-        if(completion) completion(NO);
-        if(fetchHandler) fetchHandler(UIBackgroundFetchResultNoData);
-        [[NSNotificationCenter defaultCenter] postNotificationName:NSNotification.NYPLSyncEnded object:nil];
-      }];
-      return;
+//        AccountsManager.shared.currentAccount.details.oauthIntermediaryUrl
+        if (AccountsManager.shared.currentAccount.details.oauthIntermediaryUrl) {
+            // sign in
+            NYPLLOG(@"[syncWithCompletionHandler] No valid authorization header");
+            [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+                if(completion) completion(NO);
+                if(fetchHandler) fetchHandler(UIBackgroundFetchResultNoData);
+                [[NSNotificationCenter defaultCenter] postNotificationName:NSNotification.NYPLSyncEnded object:nil];
+            }];
+            return;
+        } else {
+            NYPLLOG(@"[syncWithCompletionHandler] No barcode and PIN");
+            [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+                if(completion) completion(NO);
+                if(fetchHandler) fetchHandler(UIBackgroundFetchResultNoData);
+                [[NSNotificationCenter defaultCenter] postNotificationName:NSNotification.NYPLSyncEnded object:nil];
+            }];
+            return;
+        }
     } else {
       self.syncing = YES;
       self.syncShouldCommit = YES;

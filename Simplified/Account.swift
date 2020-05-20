@@ -340,7 +340,7 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
 
     NYPLNetworkExecutor.shared.GET(url) { result in
       switch result {
-      case .success(let serverData):
+      case .success(let serverData, _):
         do {
           self.authenticationDocument = try
             OPDS2AuthenticationDocument.fromData(serverData)
@@ -352,7 +352,7 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
             """)
           completion(false)
         }
-      case .failure(let error):
+      case .failure(let error, _):
         Log.error(#file, """
           Failed to load authentication document at URL \(url). Error: \(error)
           """)

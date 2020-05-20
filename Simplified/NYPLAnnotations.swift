@@ -653,12 +653,20 @@ import UIKit
     return syncIsPossible(NYPLUserAccount.sharedAccount()) && acct?.details?.syncPermissionGranted == true
   }
 
-  class func setDefaultAnnotationHeaders(forRequest request: inout URLRequest) {
-    for (headerKey, headerValue) in NYPLAnnotations.headers {
-      request.setValue(headerValue, forHTTPHeaderField: headerKey)
+    @objc class func addingDefaultAnnotationHeaders(to request: URLRequest) -> URLRequest {
+        var request = request
+        for (headerKey, headerValue) in NYPLAnnotations.headers {
+            request.setValue(headerValue, forHTTPHeaderField: headerKey)
+        }
+        return request
     }
+
+  class func setDefaultAnnotationHeaders(forRequest request: inout URLRequest) {
+      for (headerKey, headerValue) in NYPLAnnotations.headers {
+          request.setValue(headerValue, forHTTPHeaderField: headerKey)
+      }
   }
-  
+
   class var headers: [String:String] {
     if let barcode = NYPLUserAccount.sharedAccount().barcode, let pin = NYPLUserAccount.sharedAccount().PIN {
       let authenticationString = "\(barcode):\(pin)"

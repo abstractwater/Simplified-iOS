@@ -6,7 +6,6 @@
 #import <PureLayout/PureLayout.h>
 #import <ZXingObjC/ZXingObjC.h>
 
-#import "NYPLBasicAuth.h"
 #import "NYPLBookCoverRegistry.h"
 #import "NYPLBookRegistry.h"
 #import "NYPLCatalogNavigationController.h"

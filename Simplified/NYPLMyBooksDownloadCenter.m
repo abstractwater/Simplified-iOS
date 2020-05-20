@@ -2,7 +2,6 @@
 
 #import "NSString+NYPLStringAdditions.h"
 #import "NYPLAccountSignInViewController.h"
-#import "NYPLBasicAuth.h"
 #import "NYPLBook.h"
 #import "NYPLBookCoverRegistry.h"
 #import "NYPLBookRegistry.h"
@@ -120,16 +119,16 @@ totalBytesExpectedToWrite:(int64_t const)totalBytesExpectedToWrite
   // We update the rights management status based on the MIME type given to us by the server. We do
   // this only once at the point when we first start receiving data.
   if(bytesWritten == totalBytesWritten) {
-    if([downloadTask.response.MIMEType isEqualToString:@"application/vnd.adobe.adept+xml"]) {
+    if([downloadTask.response.MIMEType isEqualToString:ContentTypeAdobeAdept]) {
       self.bookIdentifierToDownloadInfo[book.identifier] =
       [[self downloadInfoForBookIdentifier:book.identifier]
        withRightsManagement:NYPLMyBooksDownloadRightsManagementAdobe];
-    } else if([downloadTask.response.MIMEType isEqualToString:@"application/epub+zip"]) {
+    } else if([downloadTask.response.MIMEType isEqualToString:ContentTypeEpubZip]) {
       self.bookIdentifierToDownloadInfo[book.identifier] =
       [[self downloadInfoForBookIdentifier:book.identifier]
        withRightsManagement:NYPLMyBooksDownloadRightsManagementNone];
     } else if ([downloadTask.response.MIMEType
-                isEqualToString:@"application/vnd.librarysimplified.bearer-token+json"]) {
+                isEqualToString:ContentTypeBearerToken]) {
       self.bookIdentifierToDownloadInfo[book.identifier] =
         [[self downloadInfoForBookIdentifier:book.identifier]
          withRightsManagement:NYPLMyBooksDownloadRightsManagementSimplifiedBearerTokenJSON];
@@ -225,6 +224,7 @@ didFinishDownloadingToURL:(NSURL *const)location
         break;
       }
       case NYPLMyBooksDownloadRightsManagementSimplifiedBearerTokenJSON: {
+          // szyjson it looks like it firstly downloads json with a bearer token, and then downloads the book itself
         NSData *const data = [NSData dataWithContentsOfURL:location];
         if (!data) {
           [self failDownloadForBook:book];
@@ -322,7 +322,7 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *const)challenge
  completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition,
                              NSURLCredential *credential))completionHandler
 {
-  NYPLBasicAuthHandler(challenge, completionHandler);
+  [NYPLBasicAuth authHandlerWithChallenge:challenge completionHandler:completionHandler];
 }
 
 // This is implemented in order to be able to handle redirects when using
@@ -345,6 +345,7 @@ willPerformHTTPRedirection:(__unused NSHTTPURLResponse *)response
 
   self.taskIdentifierToRedirectAttempts[@(task.taskIdentifier)] = @(redirectAttempts + 1);
 
+    // szyjson appends bearer token to redirected requests
   NSString *const authorizationKey = @"Authorization";
 
   // Since any "Authorization" header will be dropped on redirection for security
@@ -726,7 +727,7 @@ didCompleteWithError:(NSError *)error
     } else {
       // Actually download the book.
       NSURL *URL = book.defaultAcquisition.hrefURL;
-      NSURLRequest *const request = [NSURLRequest requestWithURL:URL];
+      NSURLRequest *const request = [NYPLNetworkExecutor bearerAuthorizedWithRequest:[NSURLRequest requestWithURL:URL]];
       
       if(!request.URL) {
         // Originally this code just let the request fail later on, but apparently resuming an
@@ -736,7 +737,8 @@ didCompleteWithError:(NSError *)error
         [self failDownloadForBook:book];
         return;
       }
-      
+
+        // szyjson book downloading, insert header and maybe set a type?
       NSURLSessionDownloadTask *const task = [self.session downloadTaskWithRequest:request];
       
       self.bookIdentifierToDownloadInfo[book.identifier] =
@@ -766,6 +768,7 @@ didCompleteWithError:(NSError *)error
     }
 
   } else {
+      // szyjson show login screen here
     [NYPLAccountSignInViewController
      requestCredentialsUsingExistingBarcode:NO
      completionHandler:^{

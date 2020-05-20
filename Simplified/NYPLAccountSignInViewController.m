@@ -9,7 +9,6 @@
 #import "NYPLAccountSignInViewController.h"
 #import "NYPLAppDelegate.h"
 #import "NYPLBarcodeScanningViewController.h"
-#import "NYPLBasicAuth.h"
 #import "NYPLBookCoverRegistry.h"
 #import "NYPLBookRegistry.h"
 #import "NYPLConfiguration.h"
@@ -18,6 +17,7 @@
 #import "NYPLOPDSFeed.h"
 #import "NYPLReachability.h"
 #import "NYPLRootTabBarController.h"
+#import "NYPLSettingsAccountURLSessionChallengeHandler.h"
 #import "NYPLSettingsEULAViewController.h"
 #import "NYPLUserAccountFrontEndValidation.h"
 #import "NYPLXML.h"
@@ -40,7 +40,7 @@ typedef NS_ENUM(NSInteger, Section) {
   SectionRegistration = 1
 };
 
-@interface NYPLAccountSignInViewController () <NSURLSessionDelegate, NYPLUserAccountInputProvider>
+@interface NYPLAccountSignInViewController () <NYPLUserAccountInputProvider, NYPLSettingsAccountUIDelegate>
 
 // state machine
 @property (nonatomic) BOOL isLoggingInAfterSignUp;
@@ -57,9 +57,11 @@ typedef NS_ENUM(NSInteger, Section) {
 // account state
 @property NYPLUserAccountFrontEndValidation *frontEndValidator;
 @property (nonatomic) NYPLSignInBusinessLogic *businessLogic;
+@property (nonatomic) NSString *authToken;
 
 // networking
 @property (nonatomic) NSURLSession *session;
+@property (nonatomic) NYPLSettingsAccountURLSessionChallengeHandler *urlSessionDelegate;
 @property (nonatomic, copy) void (^completionHandler)(void);
 
 @end
@@ -117,10 +119,13 @@ CGFloat const marginPadding = 2.0;
     [NSURLSessionConfiguration ephemeralSessionConfiguration];
   
   configuration.timeoutIntervalForResource = 15.0;
-  
+
+  _urlSessionDelegate = [[NYPLSettingsAccountURLSessionChallengeHandler alloc]
+                           initWithUIDelegate:self];
+
   self.session = [NSURLSession
                   sessionWithConfiguration:configuration
-                  delegate:self
+                  delegate:_urlSessionDelegate
                   delegateQueue:[NSOperationQueue mainQueue]];
   
   self.frontEndValidator = [[NYPLUserAccountFrontEndValidation alloc]
@@ -213,7 +218,9 @@ CGFloat const marginPadding = 2.0;
 - (void)setupTableData
 {
   NSArray *section0;
-  if (self.currentAccount.details.pinKeyboard != LoginKeyboardNone) {
+    if (self.currentAccount.details.oauthIntermediaryUrl != nil) {
+        section0 = @[@(CellKindLogInSignOut)].mutableCopy;
+    } else if (self.currentAccount.details.pinKeyboard != LoginKeyboardNone) {
     section0 = @[@(CellKindBarcode),
                  @(CellKindPIN),
                  @(CellKindLogInSignOut)];
@@ -514,18 +521,16 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
   }
 }
 
-#pragma mark NSURLSessionDelegate
+#pragma mark - NYPLSettingsAccountUIDelegate
 
-- (void)URLSession:(__attribute__((unused)) NSURLSession *)session
-              task:(__attribute__((unused)) NSURLSessionTask *)task
-didReceiveChallenge:(NSURLAuthenticationChallenge *const)challenge
- completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition,
-                             NSURLCredential *credential))completionHandler
+- (NSString *)username
 {
-  NYPLBasicAuthCustomHandler(challenge,
-                             completionHandler,
-                             self.usernameTextField.text,
-                             self.PINTextField.text);
+    return self.usernameTextField.text;
+}
+
+- (NSString *)pin
+{
+    return self.PINTextField.text;
 }
 
 #pragma mark - Class Methods
@@ -573,9 +578,11 @@ completionHandler:(void (^)(void))handler
       animated:YES
       completion:nil];
 
-    if (authorizeImmediately && [NYPLUserAccount sharedAccount].hasCredentials) {
-      accountViewController.PINTextField.text = [NYPLUserAccount sharedAccount].PIN;
-      [accountViewController logIn];
+    if (authorizeImmediately && [NYPLUserAccount sharedAccount].hasBarcodeAndPIN) {
+        accountViewController.PINTextField.text = [NYPLUserAccount sharedAccount].PIN;
+        [accountViewController logIn];
+    } else if (authorizeImmediately && AccountsManager.shared.currentAccount.details.oauthIntermediaryUrl) {
+        [accountViewController logIn];
     } else {
       if(useExistingBarcode) {
         [accountViewController.PINTextField becomeFirstResponder];
@@ -596,6 +603,12 @@ completionHandler:(void (^)(void))handler
 {
   [self requestCredentialsUsingExistingBarcode:YES authorizeImmediately:YES completionHandler:handler];
 }
+
++ (void)authorizeUsingIntermediaryWithCompletionHandler:(void (^)(void))handler
+{
+  [self requestCredentialsUsingExistingBarcode:NO authorizeImmediately:NO completionHandler:handler];
+}
+
 
 #pragma mark -
 
@@ -750,29 +763,139 @@ completionHandler:(void (^)(void))handler
     BOOL const pinHasText = [self.PINTextField.text
                              stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length;
     BOOL const pinIsNotRequired = self.currentAccount.details.pinKeyboard == LoginKeyboardNone;
-    if((barcodeHasText && pinHasText) || (barcodeHasText && pinIsNotRequired)) {
-      self.logInSignOutCell.userInteractionEnabled = YES;
-      self.logInSignOutCell.textLabel.textColor = [NYPLConfiguration mainColor];
+    BOOL const oauthLogin = self.currentAccount.details.oauthIntermediaryUrl != nil;
+
+    if((barcodeHasText && pinHasText) || (barcodeHasText && pinIsNotRequired) || oauthLogin) {
+        self.logInSignOutCell.userInteractionEnabled = YES;
+        self.logInSignOutCell.textLabel.textColor = [NYPLConfiguration mainColor];
     } else {
-      self.logInSignOutCell.userInteractionEnabled = NO;
-      self.logInSignOutCell.textLabel.textColor = [UIColor lightGrayColor];
+        self.logInSignOutCell.userInteractionEnabled = NO;
+        if (@available(iOS 13.0, *)) {
+            self.logInSignOutCell.textLabel.textColor = [UIColor systemGray2Color];
+        } else {
+            self.logInSignOutCell.textLabel.textColor = [UIColor lightGrayColor];
+        }
     }
   }
 }
 
 - (void)logIn
 {
-  assert(self.usernameTextField.text.length > 0);
-  assert(self.PINTextField.text.length > 0 || [self.PINTextField.text isEqualToString:@""]);
 
-  [self.usernameTextField resignFirstResponder];
-  [self.PINTextField resignFirstResponder];
+    if (self.currentAccount.details.oauthIntermediaryUrl) {
+        // oauth
+        NSURL *oauthURL = self.currentAccount.details.oauthIntermediaryUrl;
 
-  [self setActivityTitleWithText:NSLocalizedString(@"Verifying", nil)];
-  
-  [[UIApplication sharedApplication] beginIgnoringInteractionEvents];
-  
-  [self validateCredentials];
+        NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:oauthURL resolvingAgainstBaseURL:true];
+
+        // add params
+        NSURLQueryItem *redirect_uri = [[NSURLQueryItem alloc] initWithName:@"redirect_uri" value:@"https://skyneck.pl/login"];
+        urlComponents.queryItems = [urlComponents.queryItems arrayByAddingObject:redirect_uri];
+
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleRedirectURL:)
+                                                     name: @"NYPLAppDelegateDidReceiveCleverRedirectURL"
+                                                   object:nil];
+
+        [UIApplication.sharedApplication openURL: urlComponents.URL];
+        [[UIApplication sharedApplication] beginIgnoringInteractionEvents];
+    } else {
+        // bar and pin
+        assert(self.usernameTextField.text.length > 0);
+        assert(self.PINTextField.text.length > 0 || [self.PINTextField.text isEqualToString:@""]);
+
+        [self.usernameTextField resignFirstResponder];
+        [self.PINTextField resignFirstResponder];
+
+        [self setActivityTitleWithText:NSLocalizedString(@"Verifying", nil)];
+
+        [[UIApplication sharedApplication] beginIgnoringInteractionEvents];
+
+        [self validateCredentials];
+    }
+}
+
+- (void) handleRedirectURL: (NSNotification *) notification
+{
+    [NSNotificationCenter.defaultCenter removeObserver: self name: @"NYPLAppDelegateDidReceiveCleverRedirectURL" object: nil];
+
+    NSURL *url = notification.object;
+    if (![url.absoluteString hasPrefix:@"https://skyneck.pl/login"]
+        || !([url.absoluteString containsString:@"error"] || [url.absoluteString containsString:@"access_token"]))
+    {
+        [self displayErrorMessage:nil];
+        return;
+    }
+
+    NSMutableDictionary *kvpairs = [[NSMutableDictionary alloc] init];
+    for (NSString *param in [url.fragment componentsSeparatedByString:@"&"]) {
+        NSArray *elts = [param componentsSeparatedByString:@"="];
+        if([elts count] < 2) continue;
+        [kvpairs setObject:[elts lastObject] forKey:[elts firstObject]];
+    }
+
+//  if (kvpairs[@"error"] != nil) {
+//    NSString *error = [[kvpairs[@"error"] stringByReplacingOccurrencesOfString:@"+" withString:@" "] stringByRemovingPercentEncoding];
+//
+//
+//    if ([error parseJSONString] != nil) {
+//
+//    }
+////      if let errorJson = error.replacingOccurrences(of: "+", with: " ").removingPercentEncoding?.parseJSONString
+////      {
+////        debugPrint(errorJson)
+////
+////        self.showErrorMessage((errorJson as? [String : Any])?["title"] as? String)
+////
+////      }
+//
+//  }
+
+
+    NSString *auth_token = kvpairs[@"access_token"];
+    NSString *patron_info = kvpairs[@"patron_info"];
+
+    if (auth_token != nil && patron_info != nil) {
+        NSString *patron = [[patron_info stringByReplacingOccurrencesOfString:@"+" withString:@" "] stringByRemovingPercentEncoding];
+
+        if ([patron parseJSONString] != nil) {
+            self.authToken = auth_token;
+            [self validateCredentials];
+        }
+
+//    if let patronJson = patron_info.replacingOccurrences(of: "+", with: " ").removingPercentEncoding?.parseJSONString
+//    {
+//      var request = URLRequest(url: NYPLConfiguration.circulationURL().appendingPathComponent("AdobeAuth/authdata"))
+//      request.httpMethod = "GET"
+//      request.setValue("Bearer \(auth_token)", forHTTPHeaderField: "Authorization")
+//
+//      let dataTask = URLSession.shared.dataTask(with: request, completionHandler: { (data, response, error) in
+//        if let stringData = data
+//        {
+//          if let adobe_token:String = NSString(data: stringData, encoding: String.Encoding.utf8.rawValue) as String?
+//          {
+//            self.cleverAuth = (auth_token,patronJson,adobe_token)
+//
+//            debugPrint(auth_token)
+//            debugPrint(adobe_token)
+//            debugPrint(patronJson)
+//
+//            self.validateCredentials()
+//          }
+//        }
+//      })
+//      dataTask.resume()
+//    }
+    }
+
+}
+
+- (void)displayErrorMessage:(NSString *)errorMessage {
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectZero];
+    label.text = errorMessage;
+    [label sizeToFit];
+    label.center = CGPointMake(self.view.frame.size.width / 2, self.view.frame.size.height / 2);
+    [self.view addSubview:label];
 }
 
 - (void)setActivityTitleWithText:(NSString *)text
@@ -822,7 +945,15 @@ completionHandler:(void (^)(void))handler
                                          [self.currentAccount.details userProfileUrl]]];
   
   request.timeoutInterval = 20.0;
-  
+
+    if (self.currentAccount.details.oauthIntermediaryUrl != nil) {
+        NSString *authToken = self.authToken;
+        if (authToken != nil) {
+            NSString *authenticationValue = [@"Bearer " stringByAppendingString: authToken];
+            [request addValue:authenticationValue forHTTPHeaderField:@"Authorization"];
+        }
+    }
+
   self.isCurrentlySigningIn = YES;
   NSURLSessionDataTask *const task =
     [self.session
@@ -1011,6 +1142,14 @@ completionHandler:(void (^)(void))handler
     [[UIApplication sharedApplication] endIgnoringInteractionEvents];
     
     if(success) {
+        // szyjson tu authtoken
+        if (AccountsManager.shared.currentAccount.details.oauthIntermediaryUrl) {
+            [[NYPLUserAccount sharedAccount] setAuthToken:self.authToken];
+//            [[NYPLUserAccount sharedAccount] setPatron:self.patron]; // szyjson
+        } else {
+            [[NYPLUserAccount sharedAccount] setBarcode:self.usernameTextField.text PIN:self.PINTextField.text];
+        }
+
       [[NYPLUserAccount sharedAccount] setBarcode:self.usernameTextField.text
                                           PIN:self.PINTextField.text];
       if (!self.isLoggingInAfterSignUp) {

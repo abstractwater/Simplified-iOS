@@ -59,7 +59,6 @@ typedef NS_ENUM(NSInteger, CellKind) {
 @property (nonatomic) NSMutableArray *tableData;
 @property (nonatomic) UIButton *PINShowHideButton;
 @property (nonatomic) UIButton *barcodeScanButton;
-@property (nonatomic) UITableViewCell *registrationCell;
 @property (nonatomic) UITableViewCell *logInSignOutCell;
 @property (nonatomic) UITableViewCell *ageCheckCell;
 @property (nonatomic) UISwitch *syncSwitch;
@@ -77,7 +76,6 @@ typedef NS_ENUM(NSInteger, CellKind) {
 
 static const NSInteger sLinearViewTag = 1;
 static const CGFloat sVerticalMarginPadding = 2.0;
-static const double sRequestTimeoutInterval = 25.0;
 
 // table view sections indeces
 static const NSInteger sSection0AccountInfo = 0;
@@ -95,7 +93,7 @@ static const NSInteger sSection1Sync = 1;
   return self.businessLogic.libraryAccountID;
 }
 
-- (Account *)selectedAccount
+- (nullable Account *)selectedAccount
 {
   return self.businessLogic.libraryAccount;
 }
@@ -142,12 +140,6 @@ static const NSInteger sSection1Sync = 1;
   
   [[NSNotificationCenter defaultCenter]
    addObserver:self
-   selector:@selector(keyboardWillHide)
-   name:UIKeyboardWillHideNotification
-   object:nil];
-  
-  [[NSNotificationCenter defaultCenter]
-   addObserver:self
    selector:@selector(willResignActive)
    name:UIApplicationWillResignActiveNotification
    object:nil];
@@ -174,6 +166,7 @@ static const NSInteger sSection1Sync = 1;
 
 - (void)dealloc
 {
+  [self.session finishTasksAndInvalidate];
   [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
@@ -354,7 +347,6 @@ static const NSInteger sSection1Sync = 1;
   } else {
     self.hiddenPIN = YES;
     [self accountDidChange];
-    [self.tableView reloadData];
     [self updateShowHidePINState];
   }
 }
@@ -533,7 +525,7 @@ static const NSInteger sSection1Sync = 1;
   NSMutableURLRequest *const request =
   [NSMutableURLRequest requestWithURL:[NSURL URLWithString:[[self.selectedAccount details] userProfileUrl]]];
   
-  request.timeoutInterval = sRequestTimeoutInterval;
+  request.timeoutInterval = self.businessLogic.requestTimeoutInterval;
   
   NSURLSessionDataTask *const task =
   [self.session
@@ -656,7 +648,7 @@ static const NSInteger sSection1Sync = 1;
   NSMutableURLRequest *const request =
   [NSMutableURLRequest requestWithURL:[NSURL URLWithString:[[self.selectedAccount details] userProfileUrl]]];
 
-  request.timeoutInterval = sRequestTimeoutInterval;
+  request.timeoutInterval = self.businessLogic.requestTimeoutInterval;
 
   if (self.selectedAccount.details.oauthIntermediaryUrl != nil) {
     NSString *authToken = self.authToken;
@@ -699,7 +691,7 @@ static const NSInteger sSection1Sync = 1;
   UserProfileDocument *pDoc = [UserProfileDocument fromData:data error:&pDocError];
   if (!pDoc) {
     [NYPLErrorLogger logUserProfileDocumentErrorWithError:pDocError];
-    [self authorizationAttemptDidFinish:NO error:[NSError errorWithDomain:@"NYPLAuth" code:20 userInfo:@{ @"message":@"Error parsing user profile doc" }]];
+    [self authorizationAttemptDidFinish:NO error:[NSError errorWithDomain:@"NYPLAuth" code:20 userInfo:@{ NSLocalizedDescriptionKey: @"Error parsing user profile document." }]];
     return;
   }
 
@@ -713,7 +705,7 @@ static const NSInteger sSection1Sync = 1;
     [self.selectedUserAccount setLicensor:[pDoc.drm[0] licensor]];
   } else {
     NYPLLOG(@"Login Failed: No Licensor Token received or parsed from user profile document");
-    [self authorizationAttemptDidFinish:NO error:[NSError errorWithDomain:@"NYPLAuth" code:20 userInfo:@{ @"message":@"Trouble locating DRMs in profile doc" }]];
+    [self authorizationAttemptDidFinish:NO error:[NSError errorWithDomain:@"NYPLAuth" code:20 userInfo:@{ NSLocalizedDescriptionKey: @"Trouble locating DRM in profile document." }]];
     return;
   }
 
@@ -931,11 +923,11 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
         __weak NYPLSettingsAccountDetailViewController *const weakSelf = self;
         CardCreatorConfiguration *const configuration =
         [[CardCreatorConfiguration alloc]
-         initWithEndpointURL:self.selectedAccount.details.signUpUrl
+         initWithEndpointURL:self.selectedAccount.details.signUpUrl ?: APIKeys.cardCreatorEndpointURL
          endpointVersion:[APIKeys cardCreatorVersion]
-         endpointUsername:[APIKeys cardCreatorUsername]
-         endpointPassword:[APIKeys cardCreatorPassword]
-         requestTimeoutInterval:sRequestTimeoutInterval
+         endpointUsername:NYPLSecrets.cardCreatorUsername
+         endpointPassword:NYPLSecrets.cardCreatorPassword
+         requestTimeoutInterval:self.businessLogic.requestTimeoutInterval
          completionHandler:^(NSString *const username, NSString *const PIN, BOOL const userInitiated) {
           if (userInitiated) {
             // Dismiss CardCreator when user finishes Credential Review
@@ -998,7 +990,7 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
     case CellKindBarcodeImage: {
       [self.tableView beginUpdates];
       // Collapse barcode by adjusting certain constraints
-      if (self.barcodeHeightConstraint.constant > 0) {
+      if (self.barcodeImageView.bounds.size.height > 0) {
         self.barcodeHeightConstraint.constant = 0.0;
         self.barcodeLabelSpaceConstraint.constant = 0.0;
         self.barcodeImageLabel.text = NSLocalizedString(@"Show Barcode", nil);
@@ -1415,19 +1407,8 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
   [self updateLoginLogoutCellAppearance];
 }
 
-- (void)keyboardWillHide
-{
-  self.registrationCell.textLabel.enabled = YES;
-  self.registrationCell.detailTextLabel.enabled = YES;
-  self.registrationCell.userInteractionEnabled = YES;
-}
-
 - (void)keyboardDidShow:(NSNotification *const)notification
 {
-  self.registrationCell.textLabel.enabled = NO;
-  self.registrationCell.detailTextLabel.enabled = NO;
-  self.registrationCell.userInteractionEnabled = NO;
-  
   // This nudges the scroll view up slightly so that the log in button is clearly visible even on
   // older 3:2 iPhone displays. I wish there were a more general way to do this, but this does at
   // least work very well.

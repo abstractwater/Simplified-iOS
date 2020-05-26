@@ -17,7 +17,6 @@
 #import "NYPLSettingsAccountDetailViewController.h"
 #import "NYPLSettingsAccountURLSessionChallengeHandler.h"
 #import "NYPLSettingsEULAViewController.h"
-#import "NYPLUserAccountFrontEndValidation.h"
 #import "NYPLXML.h"
 #import "UIFont+NYPLSystemFontOverride.h"
 #import "UIView+NYPLViewAdditions.h"
@@ -124,6 +123,7 @@ static const NSInteger sSection1Sync = 1;
 
   self.frontEndValidator = [[NYPLUserAccountFrontEndValidation alloc]
                             initWithAccount:self.selectedAccount
+                            selectedAuthentication:self.selectedAccount.details.auths.firstObject
                             inputProvider:self];
 
   [[NSNotificationCenter defaultCenter]
@@ -217,9 +217,10 @@ static const NSInteger sSection1Sync = 1;
 - (void)setupViews {
   self.usernameTextField = [[UITextField alloc] initWithFrame:CGRectZero];
   self.usernameTextField.delegate = self.frontEndValidator;
-  self.usernameTextField.placeholder = self.selectedAccount.details.patronIDLabel ?: NSLocalizedString(@"BarcodeOrUsername", nil);
+  self.usernameTextField.placeholder =
+  self.businessLogic.selectedAuthentication.patronIDLabel ?: NSLocalizedString(@"BarcodeOrUsername", nil);
 
-  switch (self.selectedAccount.details.patronIDKeyboard) {
+  switch (self.businessLogic.selectedAuthentication.patronIDKeyboard) {
     case LoginKeyboardStandard:
     case LoginKeyboardNone:
       self.usernameTextField.keyboardType = UIKeyboardTypeASCIICapable;
@@ -245,9 +246,9 @@ static const NSInteger sSection1Sync = 1;
                    forControlEvents:UIControlEventTouchUpInside];
   
   self.PINTextField = [[UITextField alloc] initWithFrame:CGRectZero];
-  self.PINTextField.placeholder = self.selectedAccount.details.pinLabel ?: NSLocalizedString(@"PIN", nil);
+  self.PINTextField.placeholder = self.businessLogic.selectedAuthentication.pinLabel ?: NSLocalizedString(@"PIN", nil);
 
-  switch (self.selectedAccount.details.pinKeyboard) {
+  switch (self.businessLogic.selectedAuthentication.pinKeyboard) {
     case LoginKeyboardStandard:
     case LoginKeyboardNone:
       self.PINTextField.keyboardType = UIKeyboardTypeASCIICapable;
@@ -288,9 +289,9 @@ static const NSInteger sSection1Sync = 1;
     section0AcctInfo = @[@(CellKindAgeCheck)].mutableCopy;
   } else if (!self.selectedAccount.details.needsAuth) {
     section0AcctInfo = [NSMutableArray new];
-  } else if (self.selectedAccount.details.oauthIntermediaryUrl != nil) {
+  } else if (self.selectedAccount.details.selectedAuth.oauthIntermediaryUrl != nil) {
     section0AcctInfo = @[@(CellKindLogInSignOut)].mutableCopy;
-  } else if (self.selectedAccount.details.pinKeyboard != LoginKeyboardNone) {
+  } else if (self.businessLogic.selectedAuthentication.pinKeyboard != LoginKeyboardNone) {
     section0AcctInfo = @[@(CellKindBarcode), @(CellKindPIN), @(CellKindLogInSignOut)].mutableCopy;
   } else {
     //Server expects a blank string. Passes local textfield validation.
@@ -392,9 +393,9 @@ static const NSInteger sSection1Sync = 1;
 
 - (void)logIn
 {
-  if (self.selectedAccount.details.oauthIntermediaryUrl != nil) {
+  if (self.selectedAccount.details.selectedAuth.oauthIntermediaryUrl != nil) {
     // oauth
-    NSURL *oauthURL = self.selectedAccount.details.oauthIntermediaryUrl;
+    NSURL *oauthURL = self.selectedAccount.details.selectedAuth.oauthIntermediaryUrl;
 
     NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:oauthURL resolvingAgainstBaseURL:true];
 
@@ -650,7 +651,7 @@ static const NSInteger sSection1Sync = 1;
 
   request.timeoutInterval = self.businessLogic.requestTimeoutInterval;
 
-  if (self.selectedAccount.details.oauthIntermediaryUrl != nil) {
+  if (self.selectedAccount.details.selectedAuth.oauthIntermediaryUrl != nil) {
     NSString *authToken = self.authToken;
     if (authToken != nil) {
       NSString *authenticationValue = [@"Bearer " stringByAppendingString: authToken];
@@ -814,7 +815,7 @@ static const NSInteger sSection1Sync = 1;
     
     if (success) {
       // szyjson tu authtoken
-      if (self.selectedAccount.details.oauthIntermediaryUrl != nil) {
+      if (self.selectedAccount.details.selectedAuth.oauthIntermediaryUrl != nil) {
         [self.selectedUserAccount setAuthToken:self.authToken];
 //        [self.selectedUserAccount setPatron:self.patron]; // szyjson
       } else {
@@ -925,8 +926,8 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
         [[CardCreatorConfiguration alloc]
          initWithEndpointURL:self.selectedAccount.details.signUpUrl ?: APIKeys.cardCreatorEndpointURL
          endpointVersion:[APIKeys cardCreatorVersion]
-         endpointUsername:NYPLSecrets.cardCreatorUsername
-         endpointPassword:NYPLSecrets.cardCreatorPassword
+         endpointUsername:APIKeys.cardCreatorUsername
+         endpointPassword:APIKeys.cardCreatorPassword
          requestTimeoutInterval:self.businessLogic.requestTimeoutInterval
          completionHandler:^(NSString *const username, NSString *const PIN, BOOL const userInitiated) {
           if (userInitiated) {
@@ -1070,7 +1071,7 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
                                                ofView:[self.usernameTextField superview]
                                            withOffset:-sVerticalMarginPadding];
 
-        if (self.selectedAccount.details.supportsBarcodeScanner) {
+        if (self.businessLogic.selectedAuthentication.supportsBarcodeScanner) {
           [cell.contentView addSubview:self.barcodeScanButton];
           CGFloat rightMargin = cell.layoutMargins.right;
           self.barcodeScanButton.contentEdgeInsets = UIEdgeInsetsMake(0, rightMargin * 2, 0, rightMargin);
@@ -1508,8 +1509,8 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
                                  stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length;
     BOOL const pinHasText = [self.PINTextField.text
                              stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length;
-    BOOL const pinIsNotRequired = self.selectedAccount.details.pinKeyboard == LoginKeyboardNone;
-    BOOL const oauthLogin = self.selectedAccount.details.oauthIntermediaryUrl != nil;
+    BOOL const pinIsNotRequired = self.businessLogic.selectedAuthentication.pinKeyboard == LoginKeyboardNone;
+    BOOL const oauthLogin = self.selectedAccount.details.selectedAuth.oauthIntermediaryUrl != nil;
     if((barcodeHasText && pinHasText) || (barcodeHasText && pinIsNotRequired) || oauthLogin) {
       self.logInSignOutCell.userInteractionEnabled = YES;
       self.logInSignOutCell.textLabel.textColor = [NYPLConfiguration mainColor];

@@ -202,11 +202,11 @@
   if (account.details.needsAgeCheck) {
     [[AgeCheck shared] verifyCurrentAccountAgeRequirement:^(BOOL isOfAge) {
       dispatch_async(dispatch_get_main_queue(), ^{
-        mainFeedUrl = isOfAge ? account.details.coppaOverUrl : account.details.coppaUnderUrl;
+        mainFeedUrl = isOfAge ? account.details.selectedAuth.coppaOverUrl : account.details.selectedAuth.coppaUnderUrl;
         completion();
       });
     }];
-  } else if (account.details.oauthIntermediaryUrl && !NYPLUserAccount.sharedAccount.hasAuthToken) {
+  } else if (account.details.selectedAuth.oauthIntermediaryUrl && !NYPLUserAccount.sharedAccount.hasAuthToken) {
     // sign in
     [NYPLAccountSignInViewController authorizeUsingIntermediaryWithCompletionHandler:^{
       dispatch_async(dispatch_get_main_queue(), ^{
@@ -244,7 +244,7 @@
     if (account.details.needsAgeCheck) {
       [[AgeCheck shared] verifyCurrentAccountAgeRequirement:^(BOOL isOfAge) {
         dispatch_async(dispatch_get_main_queue(), ^{
-          mainFeedUrl = isOfAge ? account.details.coppaOverUrl : account.details.coppaUnderUrl;
+          mainFeedUrl = isOfAge ? account.details.selectedAuth.coppaOverUrl : account.details.selectedAuth.coppaUnderUrl;
           completion();
         });
       }];
@@ -296,7 +296,7 @@
     };
     if (currentAccount.details.needsAgeCheck) {
       [[AgeCheck shared] verifyCurrentAccountAgeRequirement:^(BOOL isOfAge) {
-        mainFeedUrl = isOfAge ? currentAccount.details.coppaOverUrl : currentAccount.details.coppaUnderUrl;
+        mainFeedUrl = isOfAge ? currentAccount.details.selectedAuth.coppaOverUrl : currentAccount.details.selectedAuth.coppaUnderUrl;
         completion();
       }];
     } else {

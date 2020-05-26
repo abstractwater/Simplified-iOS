@@ -14,7 +14,9 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
     case none
   }
   
-  struct Authentication {
+  @objc(AccountDetailsAuthentication)
+  @objcMembers
+  class Authentication: NSObject {
     let authType:AuthType
     let authPasscodeLength:UInt
     let patronIDKeyboard:LoginKeyboard
@@ -53,56 +55,25 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
   let userProfileUrl:String?
   let signUpUrl:URL?
   let loansUrl:URL?
-  
-  var authType: AuthType {
-    return auths.first?.authType ?? .none
-  }
-  
-  var authPasscodeLength: UInt {
-    return auths.first?.authPasscodeLength ?? 99
-  }
-  
-  var patronIDKeyboard: LoginKeyboard {
-    return auths.first?.patronIDKeyboard ?? .standard
-  }
-  
-  var pinKeyboard: LoginKeyboard {
-    return auths.first?.pinKeyboard ?? .standard
-  }
-  
-  var supportsBarcodeScanner: Bool {
-    return auths.first?.supportsBarcodeScanner ?? false
-  }
-  
-  var supportsBarcodeDisplay: Bool {
-    return auths.first?.supportsBarcodeDisplay ?? false
-  }
-  
-  var coppaUnderUrl: URL? {
-    return auths.first?.coppaUnderUrl
-  }
-  
-  var coppaOverUrl: URL? {
-      return auths.first?.coppaOverUrl
-  }
 
-  var oauthIntermediaryUrl: URL? {
-      return auths.first?.oauthIntermediaryUrl
-  }
-
-  var patronIDLabel: String? {
-    return auths.first?.patronIDLabel
-  }
-  
-  var pinLabel: String? {
-    return auths.first?.pinLabel
+  // szyjson set it properly
+  private var _selectedAuth: Authentication?
+  var selectedAuth: Authentication? {
+    get {
+      return _selectedAuth ?? auths.first
+    }
+    set {
+      _selectedAuth = newValue
+    }
   }
   
   var needsAuth:Bool {
+    let authType = selectedAuth?.authType ?? .none
     return authType == .basic || authType == .oauthIntermediary
   }
   
   var needsAgeCheck:Bool {
+    let authType = selectedAuth?.authType ?? .none
     return authType == .coppa
   }
   

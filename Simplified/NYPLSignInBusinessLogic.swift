@@ -23,6 +23,10 @@ class NYPLSignInBusinessLogic: NSObject {
     return AccountsManager.shared.account(libraryAccountID)
   }
 
+  @objc var selectedAuthentication: AccountDetails.Authentication? {
+    libraryAccount?.details?.auths.first
+  }
+
   @objc var userAccount: NYPLUserAccount {
     return NYPLUserAccount.sharedAccount(libraryUUID: libraryAccountID)
   }
@@ -32,7 +36,7 @@ class NYPLSignInBusinessLogic: NSObject {
     // is signed in, and has an authorization ID returned from the loans feed.
     return userAccount.hasBarcodeAndPIN() &&
       userAccount.authorizationIdentifier != nil &&
-      (libraryAccount?.details?.supportsBarcodeDisplay ?? false)
+      (selectedAuthentication?.supportsBarcodeDisplay ?? false)
   }
 
   @objc func isSignedIn() -> Bool {

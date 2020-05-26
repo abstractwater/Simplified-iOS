@@ -282,7 +282,7 @@ static NSString *const RecordsKey = @"records";
       return;
     } else if (![[NYPLUserAccount sharedAccount] hasCredentials]) {
 //        AccountsManager.shared.currentAccount.details.oauthIntermediaryUrl
-        if (AccountsManager.shared.currentAccount.details.oauthIntermediaryUrl) {
+        if (AccountsManager.shared.currentAccount.details.selectedAuth.oauthIntermediaryUrl) {
             // sign in
             NYPLLOG(@"[syncWithCompletionHandler] No valid authorization header");
             [[NSOperationQueue mainQueue] addOperationWithBlock:^{

@@ -19,7 +19,6 @@
 #import "NYPLRootTabBarController.h"
 #import "NYPLSettingsAccountURLSessionChallengeHandler.h"
 #import "NYPLSettingsEULAViewController.h"
-#import "NYPLUserAccountFrontEndValidation.h"
 #import "NYPLXML.h"
 #import "UIView+NYPLViewAdditions.h"
 #import "UIFont+NYPLSystemFontOverride.h"
@@ -127,9 +126,10 @@ CGFloat const marginPadding = 2.0;
                   sessionWithConfiguration:configuration
                   delegate:_urlSessionDelegate
                   delegateQueue:[NSOperationQueue mainQueue]];
-  
+
   self.frontEndValidator = [[NYPLUserAccountFrontEndValidation alloc]
                             initWithAccount:self.currentAccount
+                            selectedAuthentication:self.currentAccount.details.auths.firstObject
                             inputProvider:self];
   return self;
 }
@@ -152,7 +152,7 @@ CGFloat const marginPadding = 2.0;
   self.usernameTextField.delegate = self.frontEndValidator;
   self.usernameTextField.placeholder = NSLocalizedString(@"BarcodeOrUsername", nil);
 
-  switch (self.currentAccount.details.patronIDKeyboard) {
+  switch (self.businessLogic.selectedAuthentication.patronIDKeyboard) {
     case LoginKeyboardStandard:
     case LoginKeyboardNone:
       self.usernameTextField.keyboardType = UIKeyboardTypeASCIICapable;
@@ -175,7 +175,7 @@ CGFloat const marginPadding = 2.0;
   self.PINTextField = [[UITextField alloc] initWithFrame:CGRectZero];
   self.PINTextField.placeholder = NSLocalizedString(@"PIN", nil);
 
-  switch (self.currentAccount.details.pinKeyboard) {
+  switch (self.businessLogic.selectedAuthentication.pinKeyboard) {
     case LoginKeyboardStandard:
     case LoginKeyboardNone:
       self.PINTextField.keyboardType = UIKeyboardTypeASCIICapable;
@@ -218,9 +218,9 @@ CGFloat const marginPadding = 2.0;
 - (void)setupTableData
 {
   NSArray *section0;
-    if (self.currentAccount.details.oauthIntermediaryUrl != nil) {
+    if (self.currentAccount.details.selectedAuth.oauthIntermediaryUrl != nil) {
         section0 = @[@(CellKindLogInSignOut)].mutableCopy;
-    } else if (self.currentAccount.details.pinKeyboard != LoginKeyboardNone) {
+    } else if (self.businessLogic.selectedAuthentication.pinKeyboard != LoginKeyboardNone) {
     section0 = @[@(CellKindBarcode),
                  @(CellKindPIN),
                  @(CellKindLogInSignOut)];
@@ -298,8 +298,8 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
         [[CardCreatorConfiguration alloc]
          initWithEndpointURL:self.currentAccount.details.signUpUrl ?: APIKeys.cardCreatorEndpointURL
          endpointVersion:[APIKeys cardCreatorVersion]
-         endpointUsername:NYPLSecrets.cardCreatorUsername
-         endpointPassword:NYPLSecrets.cardCreatorPassword
+         endpointUsername:APIKeys.cardCreatorUsername
+         endpointPassword:APIKeys.cardCreatorPassword
          requestTimeoutInterval:20.0
          completionHandler:^(NSString *const username, NSString *const PIN, BOOL const userInitiated) {
           if (userInitiated) {
@@ -385,7 +385,7 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
                                                ofView:[self.usernameTextField superview]
                                            withOffset:-marginPadding];
 
-        if (self.currentAccount.details.supportsBarcodeScanner) {
+        if (self.businessLogic.selectedAuthentication.supportsBarcodeScanner) {
           [cell.contentView addSubview:self.barcodeScanButton];
           CGFloat rightMargin = cell.layoutMargins.right;
           self.barcodeScanButton.contentEdgeInsets = UIEdgeInsetsMake(0, rightMargin * 2, 0, rightMargin);
@@ -581,7 +581,7 @@ completionHandler:(void (^)(void))handler
     if (authorizeImmediately && [NYPLUserAccount sharedAccount].hasBarcodeAndPIN) {
         accountViewController.PINTextField.text = [NYPLUserAccount sharedAccount].PIN;
         [accountViewController logIn];
-    } else if (authorizeImmediately && AccountsManager.shared.currentAccount.details.oauthIntermediaryUrl) {
+    } else if (authorizeImmediately && AccountsManager.shared.currentAccount.details.selectedAuth.oauthIntermediaryUrl) {
         [accountViewController logIn];
     } else {
       if(useExistingBarcode) {
@@ -762,8 +762,8 @@ completionHandler:(void (^)(void))handler
                                  stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length;
     BOOL const pinHasText = [self.PINTextField.text
                              stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length;
-    BOOL const pinIsNotRequired = self.currentAccount.details.pinKeyboard == LoginKeyboardNone;
-    BOOL const oauthLogin = self.currentAccount.details.oauthIntermediaryUrl != nil;
+    BOOL const pinIsNotRequired = self.businessLogic.selectedAuthentication.pinKeyboard == LoginKeyboardNone;
+    BOOL const oauthLogin = self.currentAccount.details.selectedAuth.oauthIntermediaryUrl != nil;
 
     if((barcodeHasText && pinHasText) || (barcodeHasText && pinIsNotRequired) || oauthLogin) {
         self.logInSignOutCell.userInteractionEnabled = YES;
@@ -782,9 +782,9 @@ completionHandler:(void (^)(void))handler
 - (void)logIn
 {
 
-    if (self.currentAccount.details.oauthIntermediaryUrl) {
+    if (self.currentAccount.details.selectedAuth.oauthIntermediaryUrl) {
         // oauth
-        NSURL *oauthURL = self.currentAccount.details.oauthIntermediaryUrl;
+        NSURL *oauthURL = self.currentAccount.details.selectedAuth.oauthIntermediaryUrl;
 
         NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:oauthURL resolvingAgainstBaseURL:true];
 
@@ -946,7 +946,7 @@ completionHandler:(void (^)(void))handler
   
   request.timeoutInterval = 20.0;
 
-    if (self.currentAccount.details.oauthIntermediaryUrl != nil) {
+    if (self.currentAccount.details.selectedAuth.oauthIntermediaryUrl != nil) {
         NSString *authToken = self.authToken;
         if (authToken != nil) {
             NSString *authenticationValue = [@"Bearer " stringByAppendingString: authToken];
@@ -1143,7 +1143,7 @@ completionHandler:(void (^)(void))handler
     
     if(success) {
         // szyjson tu authtoken
-        if (AccountsManager.shared.currentAccount.details.oauthIntermediaryUrl) {
+        if (AccountsManager.shared.currentAccount.details.selectedAuth.oauthIntermediaryUrl) {
             [[NYPLUserAccount sharedAccount] setAuthToken:self.authToken];
 //            [[NYPLUserAccount sharedAccount] setPatron:self.patron]; // szyjson
         } else {

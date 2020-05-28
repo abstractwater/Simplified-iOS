@@ -8,6 +8,7 @@
 
 import UIKit
 
+@objcMembers
 class NYPLSignInBusinessLogic: NSObject {
 
   @objc let libraryAccountID: String
@@ -23,8 +24,19 @@ class NYPLSignInBusinessLogic: NSObject {
     return AccountsManager.shared.account(libraryAccountID)
   }
 
+  private var _selectedAuthentication: AccountDetails.Authentication?
   @objc var selectedAuthentication: AccountDetails.Authentication? {
-    libraryAccount?.details?.auths.first
+    get {
+      guard _selectedAuthentication == nil else { return _selectedAuthentication }
+      guard userAccount.authDefinition == nil else { return userAccount.authDefinition }
+      guard let auths = libraryAccount?.details?.auths else { return nil }
+      guard auths.count > 1 else { return auths.first }
+
+      return nil
+    }
+    set {
+      _selectedAuthentication = newValue
+    }
   }
 
   @objc var userAccount: NYPLUserAccount {

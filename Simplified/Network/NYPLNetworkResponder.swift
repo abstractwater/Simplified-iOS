@@ -152,8 +152,6 @@ extension NYPLNetworkResponder: URLSessionTaskDelegate {
 //        NYPLLOG_F(@"NSURLSessionTask: %@. Challenge Received: %@",
 //                   task.currentRequest.URL.absoluteString,
 //                   challenge.protectionSpace.authenticationMethod);
-//
-//        NYPLBasicAuthHandler(challenge, completionHandler);
 
         NYPLBasicAuth.authHandler(challenge: challenge, completionHandler: completionHandler)
     }

@@ -27,6 +27,7 @@
 #endif
 
 typedef NS_ENUM(NSInteger, CellKind) {
+  CellKindAuthenticationMethodName,
   CellKindAdvancedSettings,
   CellKindAgeCheck,
   CellKindBarcodeImage,
@@ -61,6 +62,9 @@ typedef NS_ENUM(NSInteger, CellKind) {
 @property (nonatomic) UITableViewCell *logInSignOutCell;
 @property (nonatomic) UITableViewCell *ageCheckCell;
 @property (nonatomic) UISwitch *syncSwitch;
+@property (nonatomic) UIView *accountInfoHeaderView;
+@property (nonatomic) UIView *accountInfoFooterView;
+@property (nonatomic) UIView *syncFooterView;
 
 // account state
 @property NYPLUserAccountFrontEndValidation *frontEndValidator;
@@ -70,6 +74,8 @@ typedef NS_ENUM(NSInteger, CellKind) {
 // networking
 @property (nonatomic) NSURLSession *session;
 @property (nonatomic) NYPLSettingsAccountURLSessionChallengeHandler *urlSessionDelegate;
+
+- (AccountDetailsAuthentication * _Nullable)authenticationFor:(NSIndexPath *)indexPath;
 
 @end
 
@@ -285,18 +291,63 @@ static const NSInteger sSection1Sync = 1;
 - (void)setupTableData
 {
   NSMutableArray *section0AcctInfo;
-  if (self.selectedAccount.details.needsAgeCheck) {
+
+  void (^insertCredentials)(AccountDetailsAuthentication *, NSMutableArray *section) = ^(AccountDetailsAuthentication *authenticationMethod, NSMutableArray *section) {
+    if (authenticationMethod.oauthIntermediaryUrl) {
+      [section addObject:@(CellKindLogInSignOut)];
+    } else if (authenticationMethod.pinKeyboard != LoginKeyboardNone) {
+      [section addObjectsFromArray:@[@(CellKindBarcode), @(CellKindPIN), @(CellKindLogInSignOut)]];
+    } else {
+      //Server expects a blank string. Passes local textfield validation.
+      self.PINTextField.text = @"";
+      [section addObjectsFromArray:@[@(CellKindBarcode), @(CellKindLogInSignOut)]];
+    }
+  };
+
+  if (self.businessLogic.selectedAuthentication.needsAgeCheck) {
     section0AcctInfo = @[@(CellKindAgeCheck)].mutableCopy;
-  } else if (!self.selectedAccount.details.needsAuth) {
-    section0AcctInfo = [NSMutableArray new];
-  } else if (self.selectedAccount.details.selectedAuth.oauthIntermediaryUrl != nil) {
-    section0AcctInfo = @[@(CellKindLogInSignOut)].mutableCopy;
-  } else if (self.businessLogic.selectedAuthentication.pinKeyboard != LoginKeyboardNone) {
-    section0AcctInfo = @[@(CellKindBarcode), @(CellKindPIN), @(CellKindLogInSignOut)].mutableCopy;
+  } else if (!self.businessLogic.selectedAuthentication.needsAuth && self.businessLogic.selectedAuthentication) {
+    section0AcctInfo = @[].mutableCopy;
+  } else if (self.businessLogic.userAccount.hasCredentials && self.businessLogic.selectedAuthentication) {
+    // user already logged in
+    // show only the selected auth method
+    section0AcctInfo = @[].mutableCopy;
+    insertCredentials(self.businessLogic.selectedAuthentication, section0AcctInfo);
+  } else if (!self.businessLogic.userAccount.hasCredentials) {
+    // user needs to sign in
+    section0AcctInfo = @[].mutableCopy;
+
+
+    if (self.businessLogic.libraryAccount.details.auths.count > 1)  {
+      // multiple authentication methods
+      if (self.businessLogic.selectedAuthentication) {
+        // show all possible login methods
+        // and unfold the selected one
+        for (AccountDetailsAuthentication *authenticationMethod in self.businessLogic.libraryAccount.details.auths) {
+          [section0AcctInfo addObject:@(CellKindAuthenticationMethodName)];
+          if (authenticationMethod.methodDescription == self.businessLogic.selectedAuthentication.methodDescription) {
+            // selected method, unfold
+            insertCredentials(authenticationMethod, section0AcctInfo);
+          }
+        }
+      } else {
+        // show all possible login methods
+        // with none of them unfolded
+        for (AccountDetailsAuthentication *authenticationMethod in self.businessLogic.libraryAccount.details.auths) {
+          [section0AcctInfo addObject:@(CellKindAuthenticationMethodName)];
+        }
+      }
+    } else if (self.businessLogic.selectedAuthentication) {
+      // only 1 authentication method
+      // no header needed
+      section0AcctInfo = @[].mutableCopy;
+      insertCredentials(self.businessLogic.selectedAuthentication, section0AcctInfo);
+    } else {
+      section0AcctInfo = @[].mutableCopy;
+    }
   } else {
-    //Server expects a blank string. Passes local textfield validation.
-    self.PINTextField.text = @"";
-    section0AcctInfo = @[@(CellKindBarcode), @(CellKindLogInSignOut)].mutableCopy;
+    section0AcctInfo = @[].mutableCopy;
+    insertCredentials(self.businessLogic.selectedAuthentication, section0AcctInfo);
   }
   if ([self.businessLogic librarySupportsBarcodeDisplay]) {
     [section0AcctInfo insertObject:@(CellKindBarcodeImage) atIndex: 0];
@@ -393,9 +444,9 @@ static const NSInteger sSection1Sync = 1;
 
 - (void)logIn
 {
-  if (self.selectedAccount.details.selectedAuth.oauthIntermediaryUrl != nil) {
+  if (self.businessLogic.selectedAuthentication.oauthIntermediaryUrl) {
     // oauth
-    NSURL *oauthURL = self.selectedAccount.details.selectedAuth.oauthIntermediaryUrl;
+    NSURL *oauthURL = self.businessLogic.selectedAuthentication.oauthIntermediaryUrl;
 
     NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:oauthURL resolvingAgainstBaseURL:true];
 
@@ -651,7 +702,7 @@ static const NSInteger sSection1Sync = 1;
 
   request.timeoutInterval = self.businessLogic.requestTimeoutInterval;
 
-  if (self.selectedAccount.details.selectedAuth.oauthIntermediaryUrl != nil) {
+  if (self.businessLogic.selectedAuthentication.oauthIntermediaryUrl) {
     NSString *authToken = self.authToken;
     if (authToken != nil) {
       NSString *authenticationValue = [@"Bearer " stringByAppendingString: authToken];
@@ -814,13 +865,15 @@ static const NSInteger sSection1Sync = 1;
     [[UIApplication sharedApplication] endIgnoringInteractionEvents];
     
     if (success) {
-      // szyjson tu authtoken
-      if (self.selectedAccount.details.selectedAuth.oauthIntermediaryUrl != nil) {
-        [self.selectedUserAccount setAuthToken:self.authToken];
-//        [self.selectedUserAccount setPatron:self.patron]; // szyjson
+      // szyjson handle patron
+      if (self.businessLogic.selectedAuthentication.oauthIntermediaryUrl) {
+        [self.businessLogic.userAccount setAuthToken:self.authToken];
+//        [self.selectedUserAccount setPatron:self.patron];
       } else {
-        [self.selectedUserAccount setBarcode:self.usernameTextField.text PIN:self.PINTextField.text];
+        [self.businessLogic.userAccount setBarcode:self.usernameTextField.text PIN:self.PINTextField.text];
       }
+
+      self.businessLogic.userAccount.authDefinition = self.businessLogic.selectedAuthentication;
 
       if ([self.selectedAccountId isEqualToString:[AccountsManager shared].currentAccount.uuid]) {
         [[NYPLBookRegistry sharedRegistry] syncWithCompletionHandler:^(BOOL success) {
@@ -1038,6 +1091,14 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
       [self.navigationController pushViewController:vc animated:YES];
       break;
     }
+    case CellKindAuthenticationMethodName: {
+      AccountDetailsAuthentication * _Nullable cellAuthentication = [self authenticationFor:indexPath];
+      self.businessLogic.selectedAuthentication = cellAuthentication;
+      [self setupTableData];
+      [self.tableView reloadData];
+
+      break;
+    }
   }
 }
 
@@ -1230,10 +1291,36 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
       cell.textLabel.text = NSLocalizedString(@"Advanced", nil);
       return cell;
     }
-    default: {
-      return nil;
+    case CellKindAuthenticationMethodName: {
+      AccountDetailsAuthentication * _Nullable cellAuthentication = [self authenticationFor:indexPath];
+
+      UITableViewCell *cell = [[UITableViewCell alloc]
+                               initWithStyle:UITableViewCellStyleDefault
+                               reuseIdentifier:nil];
+      cell.textLabel.font = [UIFont customFontForTextStyle:UIFontTextStyleBody];
+      cell.textLabel.text = cellAuthentication.methodDescription;
+      return cell;
     }
   }
+}
+
+- (AccountDetailsAuthentication * _Nullable)authenticationFor:(NSIndexPath *)indexPath {
+  NSArray *sectionArray = (NSArray *)self.tableData[indexPath.section];
+  AccountDetailsAuthentication * _Nullable cellAuthentication;
+  NSInteger authTypeIndex = -1;
+
+  for (NSInteger index = 0; index <= indexPath.row; ++index) {
+    CellKind kind = (CellKind)[sectionArray[index] intValue];
+    if (kind == CellKindAuthenticationMethodName) {
+      authTypeIndex += 1;
+    }
+  }
+
+  if (authTypeIndex >= 0 && authTypeIndex < ((NSInteger) self.businessLogic.libraryAccount.details.auths.count)) {
+    cellAuthentication = self.businessLogic.libraryAccount.details.auths[authTypeIndex];
+  }
+
+  return cellAuthentication;
 }
 
 - (UITableViewCell *)createRegistrationCell
@@ -1291,7 +1378,12 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
 }
 - (CGFloat)tableView:(__unused UITableView *)tableView heightForFooterInSection:(__unused NSInteger)section
 {
-  return UITableViewAutomaticDimension;
+  if ((section == sSection0AccountInfo && [self.businessLogic shouldShowEULALink]) ||
+      (section == sSection1Sync && [self.businessLogic shouldShowSyncButton])) {
+    return UITableViewAutomaticDimension;
+  } else {
+    return 0;
+  }
 }
 -(CGFloat)tableView:(__unused UITableView *)tableView estimatedHeightForHeaderInSection:(NSInteger)section
 {
@@ -1303,7 +1395,12 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
 }
 - (CGFloat)tableView:(__unused UITableView *)tableView estimatedHeightForFooterInSection:(__unused NSInteger)section
 {
-  return 44;
+  if ((section == sSection0AccountInfo && [self.businessLogic shouldShowEULALink]) ||
+      (section == sSection1Sync && [self.businessLogic shouldShowSyncButton])) {
+    return 44;
+  } else {
+    return 0;
+  }
 }
 
 - (CGFloat)tableView:(__unused UITableView *)tableView estimatedHeightForRowAtIndexPath:(__unused NSIndexPath *)indexPath
@@ -1350,7 +1447,8 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
     [subtitleLabel autoPinEdge:ALEdgeRight toEdge:ALEdgeRight ofView:titleLabel];
     [subtitleLabel autoPinEdge:ALEdgeTop toEdge:ALEdgeBottom ofView:titleLabel withOffset:0];
     [subtitleLabel autoPinEdgeToSuperviewEdge:ALEdgeBottom withInset:20];
-    
+
+    self.accountInfoHeaderView = containerView;
     return containerView;
   } else {
     return nil;
@@ -1359,6 +1457,7 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
 
 - (UIView *)tableView:(UITableView *)__unused tableView viewForFooterInSection:(NSInteger)section
 {
+  // something's wrong, it gets called every refresh cycle when scrolling
   if ((section == sSection0AccountInfo && [self.businessLogic shouldShowEULALink]) ||
       (section == sSection1Sync && [self.businessLogic shouldShowSyncButton])) {
 
@@ -1394,6 +1493,12 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
     [footerLabel autoPinEdgeToSuperviewMargin:ALEdgeRight];
     [footerLabel autoPinEdgeToSuperviewEdge:ALEdgeTop withInset:8.0];
     [footerLabel autoPinEdgeToSuperviewEdge:ALEdgeBottom withInset:16.0 relation:NSLayoutRelationGreaterThanOrEqual];
+
+    if (section == sSection0AccountInfo) {
+      self.accountInfoFooterView = container;
+    } else if (section == sSection1Sync) {
+      self.syncFooterView = container;
+    }
 
     return container;
   } else {
@@ -1510,7 +1615,7 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
     BOOL const pinHasText = [self.PINTextField.text
                              stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length;
     BOOL const pinIsNotRequired = self.businessLogic.selectedAuthentication.pinKeyboard == LoginKeyboardNone;
-    BOOL const oauthLogin = self.selectedAccount.details.selectedAuth.oauthIntermediaryUrl != nil;
+    BOOL const oauthLogin = self.businessLogic.selectedAuthentication.oauthIntermediaryUrl != nil;
     if((barcodeHasText && pinHasText) || (barcodeHasText && pinIsNotRequired) || oauthLogin) {
       self.logInSignOutCell.userInteractionEnabled = YES;
       self.logInSignOutCell.textLabel.textColor = [NYPLConfiguration mainColor];

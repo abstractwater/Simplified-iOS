@@ -23,6 +23,7 @@ private enum StorageKey: String {
   case userID = "NYPLAccountUserIDKey"
   case deviceID = "NYPLAccountDeviceIDKey"
   case credentials = "NYPLAccountCredentialsKey"
+  case authDefinition = "NYPLAccountAuthDefinitionKey"
 
   func keyForLibrary(uuid libraryUUID: String?) -> String {
     guard let libraryUUID = libraryUUID else { return self.rawValue }
@@ -35,7 +36,63 @@ private enum StorageKey: String {
   private let accountInfoLock = NSRecursiveLock()
   private lazy var keychainTransaction = KeychainVariableTransaction(accountInfoLock: accountInfoLock)
     
-  private var libraryUUID: String?
+  private var libraryUUID: String? {
+    didSet {
+      guard libraryUUID != oldValue else { return }
+      _authorizationIdentifier.key = StorageKey.authorizationIdentifier.keyForLibrary(uuid: libraryUUID)
+      _adobeToken.key = StorageKey.adobeToken.keyForLibrary(uuid: libraryUUID)
+      _licensor.key = StorageKey.licensor.keyForLibrary(uuid: libraryUUID)
+      _patron.key = StorageKey.patron.keyForLibrary(uuid: libraryUUID)
+      _adobeVendor.key = StorageKey.adobeVendor.keyForLibrary(uuid: libraryUUID)
+      _provider.key = StorageKey.provider.keyForLibrary(uuid: libraryUUID)
+      _userID.key = StorageKey.userID.keyForLibrary(uuid: libraryUUID)
+      _deviceID.key = StorageKey.deviceID.keyForLibrary(uuid: libraryUUID)
+      _credentials.key = StorageKey.credentials.keyForLibrary(uuid: libraryUUID)
+      _authDefinition.key = StorageKey.authDefinition.keyForLibrary(uuid: libraryUUID)
+
+      _barcode.key = StorageKey.barcode.keyForLibrary(uuid: libraryUUID)
+      _pin.key = StorageKey.PIN.keyForLibrary(uuid: libraryUUID)
+      _authToken.key = StorageKey.authToken.keyForLibrary(uuid: libraryUUID)
+    }
+  }
+
+  var authDefinition: AccountDetails.Authentication? {
+    get {
+      let legacyDefinition: AccountDetails.Authentication?
+      if let libraryUUID = self.libraryUUID {
+        legacyDefinition = AccountsManager.shared.account(libraryUUID)?.details?.auths.first
+      } else {
+        legacyDefinition = AccountsManager.shared.currentAccount?.details?.auths.first
+      }
+      return _authDefinition.read() ?? legacyDefinition
+    }
+    set {
+      guard let newValue = newValue else { return }
+      _authDefinition.safeWrite(newValue)
+
+      DispatchQueue.main.async {
+        var mainFeed = URL(string: AccountsManager.shared.currentAccount?.catalogUrl ?? "")
+        let resolveFn = {
+          NYPLSettings.shared.accountMainFeedURL = mainFeed
+          UIApplication.shared.delegate?.window??.tintColor = NYPLConfiguration.mainColor()
+          NotificationCenter.default.post(name: NSNotification.Name.NYPLCurrentAccountDidChange, object: nil)
+        }
+
+        if self.needsAgeCheck {
+          AgeCheck.shared().verifyCurrentAccountAgeRequirement { [weak self] meetsAgeRequirement in
+            DispatchQueue.main.async {
+              mainFeed = meetsAgeRequirement ? self?.authDefinition?.coppaOverUrl : self?.authDefinition?.coppaUnderUrl
+              resolveFn()
+            }
+          }
+        } else {
+          resolveFn()
+        }
+      }
+
+      notifyAccountDidChange()
+    }
+  }
 
   public private(set) var credentials: Credentials? {
     get {
@@ -121,9 +178,12 @@ private enum StorageKey: String {
   private lazy var _deviceID: KeychainVariable<String> = StorageKey.deviceID
     .keyForLibrary(uuid: libraryUUID)
     .asKeychainVariable(with: accountInfoLock)
-  private lazy var _credentials: KeychainVariable<Credentials> = StorageKey.credentials
+  private lazy var _credentials: KeychainCodableVariable<Credentials> = StorageKey.credentials
     .keyForLibrary(uuid: libraryUUID)
-    .asKeychainVariable(with: accountInfoLock)
+    .asKeychainCodableVariable(with: accountInfoLock)
+  private lazy var _authDefinition: KeychainCodableVariable<AccountDetails.Authentication> = StorageKey.authDefinition
+    .keyForLibrary(uuid: libraryUUID)
+    .asKeychainCodableVariable(with: accountInfoLock)
 
   // Legacy
   private lazy var _barcode: KeychainVariable<String> = StorageKey.barcode
@@ -164,6 +224,21 @@ private enum StorageKey: String {
   
   func hasCredentials() -> Bool {
     return hasAuthToken() || hasBarcodeAndPIN()
+  }
+
+  // Oauth requires login to load catalog
+  var isCatalogSecured: Bool {
+    return authDefinition?.isCatalogSecured ?? false
+  }
+
+  var needsAuth:Bool {
+    let authType = authDefinition?.authType ?? .none
+    return authType == .basic || authType == .oauthIntermediary
+  }
+
+  var needsAgeCheck:Bool {
+    let authType = authDefinition?.authType ?? .none
+    return authType == .coppa
   }
 
   // MARK: - Legacy

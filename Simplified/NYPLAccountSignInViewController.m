@@ -28,6 +28,7 @@
 #endif
 
 typedef NS_ENUM(NSInteger, CellKind) {
+  CellKindAuthenticationMethodName,
   CellKindBarcode,
   CellKindPIN,
   CellKindLogInSignOut,
@@ -61,7 +62,8 @@ typedef NS_ENUM(NSInteger, Section) {
 // networking
 @property (nonatomic) NSURLSession *session;
 @property (nonatomic) NYPLSettingsAccountURLSessionChallengeHandler *urlSessionDelegate;
-@property (nonatomic, copy) void (^completionHandler)(void);
+
+- (AccountDetailsAuthentication * _Nullable)authenticationFor:(NSIndexPath *)indexPath;
 
 @end
 
@@ -217,26 +219,70 @@ CGFloat const marginPadding = 2.0;
 
 - (void)setupTableData
 {
-  NSArray *section0;
-    if (self.currentAccount.details.selectedAuth.oauthIntermediaryUrl != nil) {
-        section0 = @[@(CellKindLogInSignOut)].mutableCopy;
-    } else if (self.businessLogic.selectedAuthentication.pinKeyboard != LoginKeyboardNone) {
-    section0 = @[@(CellKindBarcode),
-                 @(CellKindPIN),
-                 @(CellKindLogInSignOut)];
+  void (^insertCredentials)(AccountDetailsAuthentication *, NSMutableArray *section) = ^(AccountDetailsAuthentication *authenticationMethod, NSMutableArray *section) {
+    if (authenticationMethod.oauthIntermediaryUrl) {
+      [section addObject:@(CellKindLogInSignOut)];
+    } else if (authenticationMethod.pinKeyboard != LoginKeyboardNone) {
+      [section addObjectsFromArray:@[@(CellKindBarcode), @(CellKindPIN), @(CellKindLogInSignOut)]];
+    } else {
+      //Server expects a blank string. Passes local textfield validation.
+      self.PINTextField.text = @"";
+      [section addObjectsFromArray:@[@(CellKindBarcode), @(CellKindLogInSignOut)]];
+    }
+  };
+
+  NSMutableArray *section0AcctInfo;
+  if (!self.businessLogic.selectedAuthentication.needsAuth && self.businessLogic.selectedAuthentication) {
+    section0AcctInfo = @[].mutableCopy;
+  } else if (self.businessLogic.userAccount.hasCredentials && self.businessLogic.selectedAuthentication) {
+    // user already logged in
+    // show only the selected auth method
+    section0AcctInfo = @[].mutableCopy;
+    insertCredentials(self.businessLogic.selectedAuthentication, section0AcctInfo);
+  } else if (!self.businessLogic.userAccount.hasCredentials) {
+    // user needs to sign in
+    section0AcctInfo = @[].mutableCopy;
+
+
+    if (self.businessLogic.libraryAccount.details.auths.count > 1)  {
+      // multiple authentication methods
+      if (self.businessLogic.selectedAuthentication) {
+        // show all possible login methods
+        // and unfold the selected one
+        for (AccountDetailsAuthentication *authenticationMethod in self.businessLogic.libraryAccount.details.auths) {
+          [section0AcctInfo addObject:@(CellKindAuthenticationMethodName)];
+          if (authenticationMethod.methodDescription == self.businessLogic.selectedAuthentication.methodDescription) {
+            // selected method, unfold
+            insertCredentials(authenticationMethod, section0AcctInfo);
+          }
+        }
+      } else {
+        // show all possible login methods
+        // with none of them unfolded
+        for (AccountDetailsAuthentication *authenticationMethod in self.businessLogic.libraryAccount.details.auths) {
+          [section0AcctInfo addObject:@(CellKindAuthenticationMethodName)];
+        }
+      }
+    } else if (self.businessLogic.selectedAuthentication) {
+      // only 1 authentication method
+      // no header needed
+      section0AcctInfo = @[].mutableCopy;
+      insertCredentials(self.businessLogic.selectedAuthentication, section0AcctInfo);
+    } else {
+      section0AcctInfo = @[].mutableCopy;
+    }
   } else {
-    //Server expects a blank string. Passes local textfield validation.
-    self.PINTextField.text = @"";
-    section0 = @[@(CellKindBarcode),
-                 @(CellKindLogInSignOut)];
+    section0AcctInfo = @[].mutableCopy;
+    insertCredentials(self.businessLogic.selectedAuthentication, section0AcctInfo);
   }
+
   NSArray *section1;
   if ([self.businessLogic registrationIsPossible]) {
     section1 = @[@(CellKindRegistration)];
   } else {
     section1 = @[];
   }
-  self.tableData = @[section0, section1];
+  self.tableData = @[section0AcctInfo, section1];
 }
 
 - (void)viewWillAppear:(BOOL)animated
@@ -355,6 +401,14 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
       }
       break;
     }
+    case CellKindAuthenticationMethodName: {
+      AccountDetailsAuthentication * _Nullable cellAuthentication = [self authenticationFor:indexPath];
+      self.businessLogic.selectedAuthentication = cellAuthentication;
+      [self setupTableData];
+      [self.tableView reloadData];
+
+      break;
+    }
   }
 }
 
@@ -425,7 +479,36 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
     case CellKindRegistration: {
       return [self createRegistrationCell];
     }
+    case CellKindAuthenticationMethodName: {
+      AccountDetailsAuthentication * _Nullable cellAuthentication = [self authenticationFor:indexPath];
+
+      UITableViewCell *cell = [[UITableViewCell alloc]
+                               initWithStyle:UITableViewCellStyleDefault
+                               reuseIdentifier:nil];
+      cell.textLabel.font = [UIFont customFontForTextStyle:UIFontTextStyleBody];
+      cell.textLabel.text = cellAuthentication.methodDescription;
+      return cell;
+    }
   }
+}
+
+- (AccountDetailsAuthentication * _Nullable)authenticationFor:(NSIndexPath *)indexPath {
+  NSArray *sectionArray = (NSArray *)self.tableData[indexPath.section];
+  AccountDetailsAuthentication * _Nullable cellAuthentication;
+  NSInteger authTypeIndex = -1;
+
+  for (NSInteger index = 0; index <= indexPath.row; ++index) {
+    CellKind kind = (CellKind)[sectionArray[index] intValue];
+    if (kind == CellKindAuthenticationMethodName) {
+      authTypeIndex += 1;
+    }
+  }
+
+  if (authTypeIndex >= 0 && authTypeIndex < ((NSInteger) self.businessLogic.libraryAccount.details.auths.count)) {
+    cellAuthentication = self.businessLogic.libraryAccount.details.auths[authTypeIndex];
+  }
+
+  return cellAuthentication;
 }
 
 - (UITableViewCell *)createRegistrationCell
@@ -535,7 +618,6 @@ didSelectRowAtIndexPath:(NSIndexPath *const)indexPath
 
 #pragma mark - Class Methods
 
-
 + (void)
 requestCredentialsUsingExistingBarcode:(BOOL const)useExistingBarcode
 authorizeImmediately:(BOOL)authorizeImmediately
@@ -581,7 +663,7 @@ completionHandler:(void (^)(void))handler
     if (authorizeImmediately && [NYPLUserAccount sharedAccount].hasBarcodeAndPIN) {
         accountViewController.PINTextField.text = [NYPLUserAccount sharedAccount].PIN;
         [accountViewController logIn];
-    } else if (authorizeImmediately && AccountsManager.shared.currentAccount.details.selectedAuth.oauthIntermediaryUrl) {
+    } else if (authorizeImmediately && NYPLUserAccount.sharedAccount.authDefinition.oauthIntermediaryUrl) {
         [accountViewController logIn];
     } else {
       if(useExistingBarcode) {
@@ -606,7 +688,7 @@ completionHandler:(void (^)(void))handler
 
 + (void)authorizeUsingIntermediaryWithCompletionHandler:(void (^)(void))handler
 {
-  [self requestCredentialsUsingExistingBarcode:NO authorizeImmediately:NO completionHandler:handler];
+  [self requestCredentialsUsingExistingBarcode:NO authorizeImmediately:YES completionHandler:handler];
 }
 
 
@@ -763,7 +845,7 @@ completionHandler:(void (^)(void))handler
     BOOL const pinHasText = [self.PINTextField.text
                              stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length;
     BOOL const pinIsNotRequired = self.businessLogic.selectedAuthentication.pinKeyboard == LoginKeyboardNone;
-    BOOL const oauthLogin = self.currentAccount.details.selectedAuth.oauthIntermediaryUrl != nil;
+    BOOL const oauthLogin = self.businessLogic.selectedAuthentication.oauthIntermediaryUrl != nil;
 
     if((barcodeHasText && pinHasText) || (barcodeHasText && pinIsNotRequired) || oauthLogin) {
         self.logInSignOutCell.userInteractionEnabled = YES;
@@ -782,37 +864,37 @@ completionHandler:(void (^)(void))handler
 - (void)logIn
 {
 
-    if (self.currentAccount.details.selectedAuth.oauthIntermediaryUrl) {
-        // oauth
-        NSURL *oauthURL = self.currentAccount.details.selectedAuth.oauthIntermediaryUrl;
+  if (self.businessLogic.selectedAuthentication.oauthIntermediaryUrl) {
+    // oauth
+    NSURL *oauthURL = self.businessLogic.selectedAuthentication.oauthIntermediaryUrl;
 
-        NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:oauthURL resolvingAgainstBaseURL:true];
+    NSURLComponents *urlComponents = [[NSURLComponents alloc] initWithURL:oauthURL resolvingAgainstBaseURL:true];
 
-        // add params
-        NSURLQueryItem *redirect_uri = [[NSURLQueryItem alloc] initWithName:@"redirect_uri" value:@"https://skyneck.pl/login"];
-        urlComponents.queryItems = [urlComponents.queryItems arrayByAddingObject:redirect_uri];
+    // add params
+    NSURLQueryItem *redirect_uri = [[NSURLQueryItem alloc] initWithName:@"redirect_uri" value:@"https://skyneck.pl/login"];
+    urlComponents.queryItems = [urlComponents.queryItems arrayByAddingObject:redirect_uri];
 
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(handleRedirectURL:)
-                                                     name: @"NYPLAppDelegateDidReceiveCleverRedirectURL"
-                                                   object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleRedirectURL:)
+                                                 name: @"NYPLAppDelegateDidReceiveCleverRedirectURL"
+                                               object:nil];
 
-        [UIApplication.sharedApplication openURL: urlComponents.URL];
-        [[UIApplication sharedApplication] beginIgnoringInteractionEvents];
-    } else {
-        // bar and pin
-        assert(self.usernameTextField.text.length > 0);
-        assert(self.PINTextField.text.length > 0 || [self.PINTextField.text isEqualToString:@""]);
+    [UIApplication.sharedApplication openURL: urlComponents.URL];
+    [[UIApplication sharedApplication] beginIgnoringInteractionEvents];
+  } else {
+    // bar and pin
+    assert(self.usernameTextField.text.length > 0);
+    assert(self.PINTextField.text.length > 0 || [self.PINTextField.text isEqualToString:@""]);
 
-        [self.usernameTextField resignFirstResponder];
-        [self.PINTextField resignFirstResponder];
+    [self.usernameTextField resignFirstResponder];
+    [self.PINTextField resignFirstResponder];
 
-        [self setActivityTitleWithText:NSLocalizedString(@"Verifying", nil)];
+    [self setActivityTitleWithText:NSLocalizedString(@"Verifying", nil)];
 
-        [[UIApplication sharedApplication] beginIgnoringInteractionEvents];
+    [[UIApplication sharedApplication] beginIgnoringInteractionEvents];
 
-        [self validateCredentials];
-    }
+    [self validateCredentials];
+  }
 }
 
 - (void) handleRedirectURL: (NSNotification *) notification
@@ -946,13 +1028,13 @@ completionHandler:(void (^)(void))handler
   
   request.timeoutInterval = 20.0;
 
-    if (self.currentAccount.details.selectedAuth.oauthIntermediaryUrl != nil) {
-        NSString *authToken = self.authToken;
-        if (authToken != nil) {
-            NSString *authenticationValue = [@"Bearer " stringByAppendingString: authToken];
-            [request addValue:authenticationValue forHTTPHeaderField:@"Authorization"];
-        }
+  if (self.businessLogic.selectedAuthentication.oauthIntermediaryUrl) {
+    NSString *authToken = self.authToken;
+    if (authToken != nil) {
+      NSString *authenticationValue = [@"Bearer " stringByAppendingString: authToken];
+      [request addValue:authenticationValue forHTTPHeaderField:@"Authorization"];
     }
+  }
 
   self.isCurrentlySigningIn = YES;
   NSURLSessionDataTask *const task =
@@ -1142,16 +1224,17 @@ completionHandler:(void (^)(void))handler
     [[UIApplication sharedApplication] endIgnoringInteractionEvents];
     
     if(success) {
-        // szyjson tu authtoken
-        if (AccountsManager.shared.currentAccount.details.selectedAuth.oauthIntermediaryUrl) {
-            [[NYPLUserAccount sharedAccount] setAuthToken:self.authToken];
-//            [[NYPLUserAccount sharedAccount] setPatron:self.patron]; // szyjson
-        } else {
-            [[NYPLUserAccount sharedAccount] setBarcode:self.usernameTextField.text PIN:self.PINTextField.text];
-        }
+        // szyjson handle patron
 
-      [[NYPLUserAccount sharedAccount] setBarcode:self.usernameTextField.text
-                                          PIN:self.PINTextField.text];
+      if (self.businessLogic.selectedAuthentication.oauthIntermediaryUrl) {
+        [self.businessLogic.userAccount setAuthToken:self.authToken];
+//        [self.selectedUserAccount setPatron:self.patron];
+      } else {
+        [self.businessLogic.userAccount setBarcode:self.usernameTextField.text PIN:self.PINTextField.text];
+      }
+
+      self.businessLogic.userAccount.authDefinition = self.businessLogic.selectedAuthentication;
+
       if (!self.isLoggingInAfterSignUp) {
         [self dismissViewControllerAnimated:YES completion:nil];
       }

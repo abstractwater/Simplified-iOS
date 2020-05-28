@@ -254,8 +254,7 @@ didSelectItemAtIndexPath:(NSIndexPath *const)indexPath
 
 - (void)didSelectSync
 {  
-  Account *const account = [AccountsManager shared].currentAccount;
-  if (account.details.needsAuth) {
+  if ([NYPLUserAccount sharedAccount].needsAuth) {
     if([[NYPLUserAccount sharedAccount] hasCredentials]) {
       [[NYPLBookRegistry sharedRegistry] syncWithStandardAlertsOnCompletion];
     } else {

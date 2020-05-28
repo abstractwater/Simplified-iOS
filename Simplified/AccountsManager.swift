@@ -146,6 +146,7 @@ private let prodUrlHash = prodUrl.absoluteString.md5().base64EncodedStringUrlSaf
               """)
           }
 
+          // szyjson move age check after login (some auth methods may or may not require it)
           DispatchQueue.main.async {
             var mainFeed = URL(string: self.currentAccount?.catalogUrl ?? "")
             let resolveFn = {
@@ -154,10 +155,11 @@ private let prodUrlHash = prodUrl.absoluteString.md5().base64EncodedStringUrlSaf
               NotificationCenter.default.post(name: NSNotification.Name.NYPLCurrentAccountDidChange, object: nil)
               completion(true)
             }
-            if self.currentAccount?.details?.needsAgeCheck ?? false {
+
+            if self.currentAccount?.details?.defaultAuth?.needsAgeCheck ?? false {
               AgeCheck.shared().verifyCurrentAccountAgeRequirement { meetsAgeRequirement in
                 DispatchQueue.main.async {
-                  mainFeed = meetsAgeRequirement ? self.currentAccount?.details?.selectedAuth?.coppaOverUrl : self.currentAccount?.details?.selectedAuth?.coppaUnderUrl
+                  mainFeed = meetsAgeRequirement ? self.currentAccount?.details?.defaultAuth?.coppaOverUrl : self.currentAccount?.details?.defaultAuth?.coppaUnderUrl
                   resolveFn()
                 }
               }
@@ -188,9 +190,7 @@ private let prodUrlHash = prodUrl.absoluteString.md5().base64EncodedStringUrlSaf
       .trimmingCharacters(in: ["="])
     
     let wasAlreadyLoading = addLoadingCompletionHandler(key: hash, completion)
-    if wasAlreadyLoading {
-      return
-    }
+    guard !wasAlreadyLoading else { return }
 
     NYPLNetworkExecutor.shared.GET(targetUrl) { result in
       switch result {

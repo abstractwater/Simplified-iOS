@@ -280,26 +280,14 @@ static NSString *const RecordsKey = @"records";
         if(fetchHandler) fetchHandler(UIBackgroundFetchResultNoData);
       }];
       return;
-    } else if (![[NYPLUserAccount sharedAccount] hasCredentials]) {
-//        AccountsManager.shared.currentAccount.details.oauthIntermediaryUrl
-        if (AccountsManager.shared.currentAccount.details.selectedAuth.oauthIntermediaryUrl) {
-            // sign in
-            NYPLLOG(@"[syncWithCompletionHandler] No valid authorization header");
-            [[NSOperationQueue mainQueue] addOperationWithBlock:^{
-                if(completion) completion(NO);
-                if(fetchHandler) fetchHandler(UIBackgroundFetchResultNoData);
-                [[NSNotificationCenter defaultCenter] postNotificationName:NSNotification.NYPLSyncEnded object:nil];
-            }];
-            return;
-        } else {
-            NYPLLOG(@"[syncWithCompletionHandler] No barcode and PIN");
-            [[NSOperationQueue mainQueue] addOperationWithBlock:^{
-                if(completion) completion(NO);
-                if(fetchHandler) fetchHandler(UIBackgroundFetchResultNoData);
-                [[NSNotificationCenter defaultCenter] postNotificationName:NSNotification.NYPLSyncEnded object:nil];
-            }];
-            return;
-        }
+    } else if (!NYPLUserAccount.sharedAccount.hasCredentials || !AccountsManager.shared.currentAccount.loansUrl) {
+      NYPLLOG(@"[syncWithCompletionHandler] No valid credentials");
+      [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+        if(completion) completion(NO);
+        if(fetchHandler) fetchHandler(UIBackgroundFetchResultNoData);
+        [[NSNotificationCenter defaultCenter] postNotificationName:NSNotification.NYPLSyncEnded object:nil];
+      }];
+      return;
     } else {
       self.syncing = YES;
       self.syncShouldCommit = YES;

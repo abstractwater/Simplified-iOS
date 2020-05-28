@@ -60,12 +60,11 @@
                                                            cachePolicy:NSURLRequestUseProtocolCachePolicy
                                                        timeoutInterval:timeoutInterval] mutableCopy];
 
-    // szyjson this makes books list loading possible
-    if([[NYPLUserAccount sharedAccount] hasAuthToken])
-    {
-        NSString *authValue = [NSString stringWithFormat:@"Bearer %@", [[NYPLUserAccount sharedAccount] authToken]];
-        [request setValue:authValue forHTTPHeaderField:@"Authorization"];
-    }
+  if([[NYPLUserAccount sharedAccount] hasAuthToken])
+  {
+    NSString *authValue = [NSString stringWithFormat:@"Bearer %@", [[NYPLUserAccount sharedAccount] authToken]];
+    [request setValue:authValue forHTTPHeaderField:@"Authorization"];
+  }
 
   self.activityIndicatorLabel.hidden = YES;
   [NSTimer scheduledTimerWithTimeInterval: activityLabelTimer target: self
@@ -157,6 +156,15 @@
 {
   [self.activityIndicatorView stopAnimating];
   self.activityIndicatorLabel.hidden = YES;
+
+  if ([self.response.MIMEType isEqualToString:@"application/vnd.opds.authentication.v1.0+json"]) {
+    self.reloadView.hidden = false;
+    [NYPLAccountSignInViewController requestCredentialsUsingExistingBarcode:([NYPLUserAccount sharedAccount].barcode) completionHandler:^{
+      [self load];
+    }];
+    return;
+  }
+
   BOOL mimeTypeMatches = [self.response.MIMEType isEqualToString:@"application/problem+json"] ||
     [self.response.MIMEType isEqualToString:@"application/api-problem+json"];
   

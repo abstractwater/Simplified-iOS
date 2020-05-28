@@ -6,7 +6,7 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
 // MARK: AccountDetails
 // Extra data that gets loaded from an OPDS2AuthenticationDocument,
 @objcMembers final class AccountDetails: NSObject {
-  enum AuthType: String {
+  enum AuthType: String, Codable {
     case basic = "http://opds-spec.org/auth/basic"
     case coppa = "http://librarysimplified.org/terms/authentication/gate/coppa"
     case anonymous = "http://librarysimplified.org/rel/auth/anonymous"
@@ -16,7 +16,7 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
   
   @objc(AccountDetailsAuthentication)
   @objcMembers
-  class Authentication: NSObject {
+  class Authentication: NSObject, Codable, NSCoding {
     let authType:AuthType
     let authPasscodeLength:UInt
     let patronIDKeyboard:LoginKeyboard
@@ -28,6 +28,7 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
     let coppaUnderUrl:URL?
     let coppaOverUrl:URL?
     let oauthIntermediaryUrl:URL?
+    let methodDescription: String?
 
     init(auth: OPDS2AuthenticationDocument.Authentication) {
       authType = AuthType(rawValue: auth.type) ?? .none
@@ -36,47 +37,118 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
       pinKeyboard = LoginKeyboard.init(auth.inputs?.password.keyboard) ?? .standard
       patronIDLabel = auth.labels?.login
       pinLabel = auth.labels?.password
+      methodDescription = auth.description
       supportsBarcodeScanner = auth.inputs?.login.barcodeFormat == "Codabar"
       supportsBarcodeDisplay = supportsBarcodeScanner
       coppaUnderUrl = URL.init(string: auth.links?.first(where: { $0.rel == "http://librarysimplified.org/terms/rel/authentication/restriction-not-met" })?.href ?? "")
         coppaOverUrl = URL.init(string: auth.links?.first(where: { $0.rel == "http://librarysimplified.org/terms/rel/authentication/restriction-met" })?.href ?? "")
         oauthIntermediaryUrl = URL.init(string: auth.links?.first(where: { $0.rel == "authenticate" })?.href ?? "")
     }
+
+    var needsAuth:Bool {
+      return authType == .basic || authType == .oauthIntermediary
+    }
+
+    var needsAgeCheck:Bool {
+      return authType == .coppa
+    }
+
+    var isCatalogSecured: Bool {
+      return authType == .oauthIntermediary
+    }
+
+    enum CodingKeys: String, CodingKey {
+      case authType
+      case authPasscodeLength
+      case patronIDKeyboard
+      case pinKeyboard
+      case patronIDLabel
+      case pinLabel
+      case supportsBarcodeScanner
+      case supportsBarcodeDisplay
+      case coppaUnderUrl
+      case coppaOverUrl
+      case oauthIntermediaryUrl
+      case methodDescription
+    }
+
+    required init(from decoder: Decoder) throws {
+      let values = try decoder.container(keyedBy: CodingKeys.self)
+
+      authType = try values.decode(AuthType.self, forKey: .authType)
+      authPasscodeLength = try values.decode(UInt.self, forKey: .authPasscodeLength)
+      patronIDKeyboard = try values.decode(LoginKeyboard.self, forKey: .patronIDKeyboard)
+      pinKeyboard = try values.decode(LoginKeyboard.self, forKey: .pinKeyboard)
+      patronIDLabel = try values.decodeIfPresent(String.self, forKey: .patronIDLabel)
+      pinLabel = try values.decodeIfPresent(String.self, forKey: .pinLabel)
+      supportsBarcodeScanner = try values.decode(Bool.self, forKey: .supportsBarcodeScanner)
+      supportsBarcodeDisplay = try values.decode(Bool.self, forKey: .supportsBarcodeDisplay)
+      coppaUnderUrl = try values.decodeIfPresent(URL.self, forKey: .coppaUnderUrl)
+      coppaOverUrl = try values.decodeIfPresent(URL.self, forKey: .coppaOverUrl)
+      oauthIntermediaryUrl = try values.decodeIfPresent(URL.self, forKey: .oauthIntermediaryUrl)
+      methodDescription = try values.decodeIfPresent(String.self, forKey: .methodDescription)
+    }
+
+    func encode(to encoder: Encoder) throws {
+      var container = encoder.container(keyedBy: CodingKeys.self)
+      try container.encode(authType, forKey: .authType)
+      try container.encode(authPasscodeLength, forKey: .authPasscodeLength)
+      try container.encode(patronIDKeyboard, forKey: .patronIDKeyboard)
+      try container.encode(pinKeyboard, forKey: .pinKeyboard)
+      try container.encode(patronIDLabel, forKey: .patronIDLabel)
+      try container.encode(pinLabel, forKey: .pinLabel)
+      try container.encode(supportsBarcodeScanner, forKey: .supportsBarcodeScanner)
+      try container.encode(supportsBarcodeDisplay, forKey: .supportsBarcodeDisplay)
+      try container.encode(coppaUnderUrl, forKey: .coppaUnderUrl)
+      try container.encode(coppaOverUrl, forKey: .coppaOverUrl)
+      try container.encode(oauthIntermediaryUrl, forKey: .oauthIntermediaryUrl)
+      try container.encode(methodDescription, forKey: .methodDescription)
+    }
+
+    func encode(with coder: NSCoder) {
+      let jsonEncoder = JSONEncoder()
+      guard let data = try? jsonEncoder.encode(self) else { return }
+      coder.encode(data as NSData)
+    }
+
+    required init?(coder: NSCoder) {
+      guard let data = coder.decodeData() else { return nil }
+      let jsonDecoder = JSONDecoder()
+      guard let authentication = try? jsonDecoder.decode(Authentication.self, from: data) else { return nil }
+
+      authType = authentication.authType
+      authPasscodeLength = authentication.authPasscodeLength
+      patronIDKeyboard = authentication.patronIDKeyboard
+      pinKeyboard = authentication.pinKeyboard
+      patronIDLabel = authentication.patronIDLabel
+      pinLabel = authentication.pinLabel
+      supportsBarcodeScanner = authentication.supportsBarcodeScanner
+      supportsBarcodeDisplay = authentication.supportsBarcodeDisplay
+      coppaUnderUrl = authentication.coppaUnderUrl
+      coppaOverUrl = authentication.coppaOverUrl
+      oauthIntermediaryUrl = authentication.oauthIntermediaryUrl
+      methodDescription = authentication.methodDescription
+    }
   }
-  
+
   let defaults:UserDefaults
   let uuid:String
   let supportsSimplyESync:Bool
   let supportsCardCreator:Bool
   let supportsReservations:Bool
   let auths: [Authentication]
-  
+
   let mainColor:String?
   let userProfileUrl:String?
   let signUpUrl:URL?
   let loansUrl:URL?
 
-  // szyjson set it properly
-  private var _selectedAuth: Authentication?
-  var selectedAuth: Authentication? {
-    get {
-      return _selectedAuth ?? auths.first
-    }
-    set {
-      _selectedAuth = newValue
-    }
+  // szyjson is it needed?
+  var defaultAuth: Authentication? {
+    guard auths.count > 1 else { return auths.first }
+    return auths.first(where: { !$0.isCatalogSecured }) ?? auths.first
   }
-  
-  var needsAuth:Bool {
-    let authType = selectedAuth?.authType ?? .none
-    return authType == .basic || authType == .oauthIntermediary
-  }
-  
-  var needsAgeCheck:Bool {
-    let authType = selectedAuth?.authType ?? .none
-    return authType == .coppa
-  }
-  
+
   fileprivate var urlAnnotations:URL?
   fileprivate var urlAcknowledgements:URL?
   fileprivate var urlContentLicenses:URL?
@@ -364,7 +436,7 @@ extension Account {
 }
 
 // MARK: LoginKeyboard
-@objc enum LoginKeyboard: Int {
+@objc enum LoginKeyboard: Int, Codable {
   case standard
   case email
   case numeric

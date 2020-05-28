@@ -224,7 +224,6 @@ didFinishDownloadingToURL:(NSURL *const)location
         break;
       }
       case NYPLMyBooksDownloadRightsManagementSimplifiedBearerTokenJSON: {
-          // szyjson it looks like it firstly downloads json with a bearer token, and then downloads the book itself
         NSData *const data = [NSData dataWithContentsOfURL:location];
         if (!data) {
           [self failDownloadForBook:book];
@@ -345,7 +344,6 @@ willPerformHTTPRedirection:(__unused NSHTTPURLResponse *)response
 
   self.taskIdentifierToRedirectAttempts[@(task.taskIdentifier)] = @(redirectAttempts + 1);
 
-    // szyjson appends bearer token to redirected requests
   NSString *const authorizationKey = @"Authorization";
 
   // Since any "Authorization" header will be dropped on redirection for security
@@ -690,7 +688,7 @@ didCompleteWithError:(NSError *)error
   
   switch(state) {
     case NYPLBookStateUnregistered:
-      if(!book.defaultAcquisitionIfBorrow && (book.defaultAcquisitionIfOpenAccess || ![[AccountsManager sharedInstance] currentAccount].details.needsAuth)) {
+      if(!book.defaultAcquisitionIfBorrow && (book.defaultAcquisitionIfOpenAccess || !NYPLUserAccount.sharedAccount.authDefinition.needsAuth)) {
         [[NYPLBookRegistry sharedRegistry]
          addBook:book
          location:nil
@@ -738,7 +736,6 @@ didCompleteWithError:(NSError *)error
         return;
       }
 
-        // szyjson book downloading, insert header and maybe set a type?
       NSURLSessionDownloadTask *const task = [self.session downloadTaskWithRequest:request];
       
       self.bookIdentifierToDownloadInfo[book.identifier] =
@@ -768,7 +765,6 @@ didCompleteWithError:(NSError *)error
     }
 
   } else {
-      // szyjson show login screen here
     [NYPLAccountSignInViewController
      requestCredentialsUsingExistingBarcode:NO
      completionHandler:^{

@@ -97,4 +97,8 @@ extension String {
   func asKeychainVariable<VariableType>(with accountInfoLock: NSRecursiveLock) -> KeychainVariable<VariableType> {
     return KeychainVariable<VariableType>(key: self, accountInfoLock: accountInfoLock)
   }
+
+  func asKeychainCodableVariable<VariableType: Codable>(with accountInfoLock: NSRecursiveLock) -> KeychainCodableVariable<VariableType> {
+    return KeychainCodableVariable<VariableType>(key: self, accountInfoLock: accountInfoLock)
+  }
 }

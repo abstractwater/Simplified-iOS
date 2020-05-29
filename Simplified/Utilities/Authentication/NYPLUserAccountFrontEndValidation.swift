@@ -21,25 +21,25 @@ protocol NYPLUserAccountInputProvider {
 @objcMembers class NYPLUserAccountFrontEndValidation: NSObject {
   let userInputProvider: NYPLUserAccountInputProvider
   let account: Account
-  let selectedAuthentication: AccountDetails.Authentication
+  private weak var businessLogic: NYPLSignInBusinessLogic?
 
-  init(account: Account, selectedAuthentication: AccountDetails.Authentication, inputProvider: NYPLUserAccountInputProvider) {
+  init(account: Account, businessLogic: NYPLSignInBusinessLogic?, inputProvider: NYPLUserAccountInputProvider) {
     self.userInputProvider = inputProvider
     self.account = account
-    self.selectedAuthentication = selectedAuthentication
+    self.businessLogic = businessLogic
   }
 }
 
 extension NYPLUserAccountFrontEndValidation: UITextFieldDelegate {
   func textFieldShouldBeginEditing(_ textField: UITextField) -> Bool {
-    return !NYPLUserAccount.sharedAccount().hasBarcodeAndPIN()
+    return !(businessLogic?.userAccount.hasBarcodeAndPIN() ?? false)
   }
 
   func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
     guard string.canBeConverted(to: .ascii) else { return false }
 
     if textField == userInputProvider.usernameTextField,
-      selectedAuthentication.patronIDKeyboard != .email {
+      businessLogic?.selectedAuthentication?.patronIDKeyboard != .email {
 
       // Barcodes are numeric and usernames are alphanumeric including punctuation
       let allowedCharacters = CharacterSet.alphanumerics.union(.punctuationCharacters)
@@ -59,15 +59,16 @@ extension NYPLUserAccountFrontEndValidation: UITextFieldDelegate {
       let allowedCharacters = CharacterSet.decimalDigits
       let bannedCharacters = allowedCharacters.inverted
 
-      let alphanumericPin = selectedAuthentication.pinKeyboard != .numeric
+      let alphanumericPin = businessLogic?.selectedAuthentication?.pinKeyboard != .numeric
       let containsNonNumeric = !(string.rangeOfCharacter(from: bannedCharacters)?.isEmpty ?? true)
       let abovePinCharLimit: Bool
+      let passcodeLength = businessLogic?.selectedAuthentication?.authPasscodeLength ?? 0
 
       if let text = textField.text,
         let textRange = Range(range, in: text) {
 
         let updatedText = text.replacingCharacters(in: textRange, with: string)
-        abovePinCharLimit = updatedText.count > selectedAuthentication.authPasscodeLength
+        abovePinCharLimit = updatedText.count > passcodeLength
       } else {
         abovePinCharLimit = false
       }
@@ -76,7 +77,7 @@ extension NYPLUserAccountFrontEndValidation: UITextFieldDelegate {
       guard alphanumericPin || !containsNonNumeric else { return false }
 
       // PIN's character limit. Zero is unlimited.
-      if selectedAuthentication.authPasscodeLength == 0 {
+      if passcodeLength == 0 {
         return true
       } else if abovePinCharLimit {
         return false

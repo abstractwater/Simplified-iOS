@@ -110,8 +110,6 @@ extension NYPLNetworkExecutor {
             let authenticationValue = "Bearer \(authToken)"
             headers = ["Authorization" : "\(authenticationValue)",
                 "Content-Type" : "application/json"]
-        } else {
-            Log.error(#file, "Attempted to create authorization header with neither an oauth token nor a barcode and pin pair.")
         }
         for (headerKey, headerValue) in headers {
             request.setValue(headerValue, forHTTPHeaderField: headerKey)
@@ -139,6 +137,23 @@ extension NYPLNetworkExecutor {
         task.resume()
         
         return task
+    }
+
+    /// Performs a GET request using the specified URL
+    /// - Parameters:
+    ///   - reqURL: URL of the resource to GET.
+    ///   - completion: Always called when the resource is either fetched from
+    /// the network or from the cache.
+    @objc func resolve(_ request: URLRequest,
+                   completion: @escaping (_ result: Data?, _ response: URLResponse?,  _ error: Error?) -> Void) -> URLSessionDataTask {
+      let req = NYPLNetworkExecutor.bearerAuthorized(request: request)
+      let completionWrapper: (_ result: NYPLResult<Data>) -> Void = { result in
+        switch result {
+        case let .success(data, response): completion(data, response, nil)
+        case let .failure(error, response): completion(nil, response, error)
+        }
+      }
+      return executeRequest(req, completion: completionWrapper)
     }
 
     /// Performs a GET request using the specified URL

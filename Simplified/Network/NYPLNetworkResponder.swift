@@ -172,7 +172,7 @@ extension NYPLNetworkResponder: URLSessionTaskDelegate {
                                            username: barcode,
                                            password: pin)
             } else {
-                completionHandler(.cancelAuthenticationChallenge, nil)
+                completionHandler(.performDefaultHandling, nil)
             }
 
         case NSURLAuthenticationMethodServerTrust:
@@ -196,7 +196,7 @@ extension NYPLNetworkResponder: URLSessionTaskDelegate {
                                                 persistence: .none)
                 completionHandler(.useCredential, credentials)
             } else {
-                completionHandler(.cancelAuthenticationChallenge, nil)
+                completionHandler(.performDefaultHandling, nil)
             }
 
         default:

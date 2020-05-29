@@ -129,7 +129,7 @@ static const NSInteger sSection1Sync = 1;
 
   self.frontEndValidator = [[NYPLUserAccountFrontEndValidation alloc]
                             initWithAccount:self.selectedAccount
-                            selectedAuthentication:self.selectedAccount.details.auths.firstObject
+                            businessLogic:self.businessLogic
                             inputProvider:self];
 
   [[NSNotificationCenter defaultCenter]
@@ -624,7 +624,7 @@ static const NSInteger sSection1Sync = 1;
   } else {
     [[NYPLMyBooksDownloadCenter sharedDownloadCenter] reset:self.selectedAccountId];
     [[NYPLBookRegistry sharedRegistry] reset:self.selectedAccountId];
-    [[NYPLUserAccount sharedAccount:self.selectedAccountId] removeAll];
+    [self.businessLogic.userAccount removeAll];
     [self setupTableData];
     [self.tableView reloadData];
     [self removeActivityTitle];
@@ -748,7 +748,7 @@ static const NSInteger sSection1Sync = 1;
   }
 
   if (pDoc.authorizationIdentifier) {
-    [[NYPLUserAccount sharedAccount:self.selectedAccountId] setAuthorizationIdentifier:pDoc.authorizationIdentifier];
+    [self.businessLogic.userAccount setAuthorizationIdentifier:pDoc.authorizationIdentifier];
   } else {
     NYPLLOG(@"Authorization ID (Barcode String) was nil.");
   }

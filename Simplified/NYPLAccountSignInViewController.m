@@ -131,7 +131,7 @@ CGFloat const marginPadding = 2.0;
 
   self.frontEndValidator = [[NYPLUserAccountFrontEndValidation alloc]
                             initWithAccount:self.currentAccount
-                            selectedAuthentication:self.currentAccount.details.auths.firstObject
+                            businessLogic:self.businessLogic
                             inputProvider:self];
   return self;
 }

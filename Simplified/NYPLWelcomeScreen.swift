@@ -185,19 +185,6 @@ import PureLayout
     
     let pickLibrary = {
       let listVC = NYPLWelcomeScreenAccountList { account in
-
-//        let completion: ((Account) -> ()) = { account in
-//          if account.details?.defaultAuth?.isCatalogSecured == true && NYPLUserAccount.sharedAccount().hasCredentials() {
-//            let signInVC = NYPLAccountSignInViewController()
-//            signInVC.completionHandler = {
-//              self.completion?(account)
-//            }
-//            self.navigationController?.pushViewController(signInVC, animated: true)
-//          } else {
-//            self.completion?(account)
-//          }
-//        }
-
         if account.details != nil {
           self.completion?(account)
         } else {

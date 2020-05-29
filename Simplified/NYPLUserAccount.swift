@@ -117,7 +117,9 @@ private enum StorageKey: String {
       // make sure to set the barcode related to the current account (aka library)
       // not the one we just signed in to, because we could have signed in into
       // library A, but still browsing the catalog of library B.
-      NYPLErrorLogger.setUserID(NYPLUserAccount.sharedAccount().barcode)
+      if case let .barcodeAndPin(barcode: userBarcode, pin: _) = newValue {
+        NYPLErrorLogger.setUserID(userBarcode)
+      }
 
       notifyAccountDidChange()
     }

@@ -3,6 +3,7 @@ import Foundation
 let currentAccountIdentifierKey  = "NYPLCurrentAccountIdentifier"
 
 private let betaUrl = URL(string: "https://libraryregistry.librarysimplified.org/libraries/qa")!
+//private let prodUrl = URL(string: "https://libraryregistry.librarysimplified.org/libraries/qa")!
 private let prodUrl = URL(string: "https://libraryregistry.librarysimplified.org/libraries")!
 private let betaUrlHash = betaUrl.absoluteString.md5().base64EncodedStringUrlSafe().trimmingCharacters(in: ["="])
 private let prodUrlHash = prodUrl.absoluteString.md5().base64EncodedStringUrlSafe().trimmingCharacters(in: ["="])
@@ -146,7 +147,7 @@ private let prodUrlHash = prodUrl.absoluteString.md5().base64EncodedStringUrlSaf
               """)
           }
 
-          // szyjson move age check after login (some auth methods may or may not require it)
+          // FIXME: move age check after login (some auth methods may or may not require it)
           DispatchQueue.main.async {
             var mainFeed = URL(string: self.currentAccount?.catalogUrl ?? "")
             let resolveFn = {

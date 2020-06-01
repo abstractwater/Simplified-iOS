@@ -70,6 +70,7 @@ typedef NS_ENUM(NSInteger, CellKind) {
 @property NYPLUserAccountFrontEndValidation *frontEndValidator;
 @property (nonatomic) NYPLSignInBusinessLogic *businessLogic;
 @property (nonatomic) NSString *authToken;
+@property (nonatomic) NSDictionary *patron;
 
 // networking
 @property (nonatomic) NSURLSession *session;
@@ -496,23 +497,15 @@ static const NSInteger sSection1Sync = 1;
     [kvpairs setObject:[elts lastObject] forKey:[elts firstObject]];
   }
 
-//  if (kvpairs[@"error"] != nil) {
-//    NSString *error = [[kvpairs[@"error"] stringByReplacingOccurrencesOfString:@"+" withString:@" "] stringByRemovingPercentEncoding];
-//
-//
-//    if ([error parseJSONString] != nil) {
-//
-//    }
-////      if let errorJson = error.replacingOccurrences(of: "+", with: " ").removingPercentEncoding?.parseJSONString
-////      {
-////        debugPrint(errorJson)
-////
-////        self.showErrorMessage((errorJson as? [String : Any])?["title"] as? String)
-////
-////      }
-//
-//  }
+  if (kvpairs[@"error"]) {
+    NSString *error = [[kvpairs[@"error"] stringByReplacingOccurrencesOfString:@"+" withString:@" "] stringByRemovingPercentEncoding];
 
+    NSDictionary *parsedError = [error parseJSONString];
+
+    if (parsedError) {
+      [self displayErrorMessage:parsedError[@"title"]];
+    }
+  }
 
   NSString *auth_token = kvpairs[@"access_token"];
   NSString *patron_info = kvpairs[@"patron_info"];
@@ -520,36 +513,13 @@ static const NSInteger sSection1Sync = 1;
   if (auth_token != nil && patron_info != nil) {
     NSString *patron = [[patron_info stringByReplacingOccurrencesOfString:@"+" withString:@" "] stringByRemovingPercentEncoding];
 
-    if ([patron parseJSONString] != nil) {
+    NSDictionary *parsedPatron = [patron parseJSONString];
+    if (parsedPatron) {
       self.authToken = auth_token;
+      self.patron = parsedPatron;
       [self validateCredentials];
     }
-
-//    if let patronJson = patron_info.replacingOccurrences(of: "+", with: " ").removingPercentEncoding?.parseJSONString
-//    {
-//      var request = URLRequest(url: NYPLConfiguration.circulationURL().appendingPathComponent("AdobeAuth/authdata"))
-//      request.httpMethod = "GET"
-//      request.setValue("Bearer \(auth_token)", forHTTPHeaderField: "Authorization")
-//
-//      let dataTask = URLSession.shared.dataTask(with: request, completionHandler: { (data, response, error) in
-//        if let stringData = data
-//        {
-//          if let adobe_token:String = NSString(data: stringData, encoding: String.Encoding.utf8.rawValue) as String?
-//          {
-//            self.cleverAuth = (auth_token,patronJson,adobe_token)
-//
-//            debugPrint(auth_token)
-//            debugPrint(adobe_token)
-//            debugPrint(patronJson)
-//
-//            self.validateCredentials()
-//          }
-//        }
-//      })
-//      dataTask.resume()
-//    }
   }
-
 }
 
 
@@ -865,10 +835,9 @@ static const NSInteger sSection1Sync = 1;
     [[UIApplication sharedApplication] endIgnoringInteractionEvents];
     
     if (success) {
-      // szyjson handle patron
       if (self.businessLogic.selectedAuthentication.oauthIntermediaryUrl) {
         [self.businessLogic.userAccount setAuthToken:self.authToken];
-//        [self.selectedUserAccount setPatron:self.patron];
+        [self.businessLogic.userAccount setPatron:self.patron];
       } else {
         [self.businessLogic.userAccount setBarcode:self.usernameTextField.text PIN:self.PINTextField.text];
       }

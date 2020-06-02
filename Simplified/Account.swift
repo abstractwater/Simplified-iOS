@@ -143,7 +143,7 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
   let signUpUrl:URL?
   let loansUrl:URL?
 
-  // szyjson is it needed?
+  // FIXME: Is it needed?
   var defaultAuth: Authentication? {
     guard auths.count > 1 else { return auths.first }
     return auths.first(where: { !$0.isCatalogSecured }) ?? auths.first

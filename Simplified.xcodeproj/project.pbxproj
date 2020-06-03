@@ -30,7 +30,6 @@
 		085D31D71BE29E38007F7672 /* NYPLProblemReportViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 085D31D61BE29E38007F7672 /* NYPLProblemReportViewController.m */; };
 		085D31D91BE29ED4007F7672 /* NYPLProblemReportViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 085D31D81BE29ED4007F7672 /* NYPLProblemReportViewController.xib */; };
 		085D31DF1BE3CD3C007F7672 /* NSURLRequest+NYPLURLRequestAdditions.m in Sources */ = {isa = PBXBuildFile; fileRef = 085D31DE1BE3CD3C007F7672 /* NSURLRequest+NYPLURLRequestAdditions.m */; };
-		087FD174246B5B54004843EF /* CleverLoginViewcontroller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 087FD173246B5B54004843EF /* CleverLoginViewcontroller.swift */; };
 		08A352201BDE8E410040BF1D /* CFNetwork.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 08A3521F1BDE8E410040BF1D /* CFNetwork.framework */; };
 		08A352221BDE8E560040BF1D /* libicucore.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 08A352211BDE8E560040BF1D /* libicucore.tbd */; };
 		08A352241BDE8E640040BF1D /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 08A352231BDE8E640040BF1D /* Security.framework */; };
@@ -327,7 +326,6 @@
 		085D31DD1BE3CD3C007F7672 /* NSURLRequest+NYPLURLRequestAdditions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSURLRequest+NYPLURLRequestAdditions.h"; sourceTree = "<group>"; };
 		085D31DE1BE3CD3C007F7672 /* NSURLRequest+NYPLURLRequestAdditions.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSURLRequest+NYPLURLRequestAdditions.m"; sourceTree = "<group>"; };
 		085D31FB1BE7BE86007F7672 /* ReaderClientCert.sig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = ReaderClientCert.sig; sourceTree = "<group>"; };
-		087FD173246B5B54004843EF /* CleverLoginViewcontroller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleverLoginViewcontroller.swift; sourceTree = "<group>"; };
 		08A3521F1BDE8E410040BF1D /* CFNetwork.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CFNetwork.framework; path = System/Library/Frameworks/CFNetwork.framework; sourceTree = SDKROOT; };
 		08A352211BDE8E560040BF1D /* libicucore.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libicucore.tbd; path = usr/lib/libicucore.tbd; sourceTree = SDKROOT; };
 		08A352231BDE8E640040BF1D /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
@@ -1018,7 +1016,6 @@
 				111E75791A80165C00718AD7 /* NYPLSettingsSplitViewController.m */,
 				E6BA02B71DE4B6F600F76404 /* RemoteHTMLViewController.swift */,
 				731A5B1124621F2B00B5E663 /* NYPLSignInBusinessLogic.swift */,
-				087FD173246B5B54004843EF /* CleverLoginViewcontroller.swift */,
 			);
 			name = Settings;
 			sourceTree = "<group>";
@@ -1751,7 +1748,6 @@
 				2D87909D20127AA300E2763F /* NYPLBookAcquisitionPath.m in Sources */,
 				2DCB71EE2017DFB5000E041A /* NYPLOPDSAcquisitionAvailability.m in Sources */,
 				2DB436381D4C049200F8E69D /* NYPLReachability.m in Sources */,
-				087FD174246B5B54004843EF /* CleverLoginViewcontroller.swift in Sources */,
 				1195040B1994075B009FB788 /* NYPLReaderViewController.m in Sources */,
 				1183F33B194B775900DC322F /* NYPLCatalogLaneCell.m in Sources */,
 				E6202A021DD4E6F300C99553 /* NYPLSettingsAccountDetailViewController.m in Sources */,

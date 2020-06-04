@@ -140,53 +140,6 @@ class NYPLSignInBusinessLogic: NSObject {
       self.permissionsCheckLock.unlock()
     }
   }
-
-    @objc func handleRedirectURL(url: URL) {
-
-        if(!url.absoluteString.hasPrefix("open-ebooks-clever")
-            || !(url.absoluteString.contains("error") || url.absoluteString.contains("access_token")))
-        {
-            // The server did not give us what we expected (e.g. we received a 500),
-            // thus we show an error message and stop handling the result.
-
-//            self.showErrorMessage(nil)
-            return
-        }
-
-        let fragment = url.fragment
-        var kvpairs:[String:String] = [String:String]()
-        let components = fragment?.components(separatedBy: "&")
-        for component in components!
-        {
-            var kv = component.components(separatedBy: "=")
-            if kv.count == 2
-            {
-                kvpairs[kv[0]] = kv[1]
-            }
-        }
-
-        if let error = kvpairs["error"]
-        {
-            if let errorJson = error.replacingOccurrences(of: "+", with: " ").removingPercentEncoding?.parseJSONString
-            {
-                debugPrint(errorJson)
-
-//                self.showErrorMessage((errorJson as? [String : Any])?["title"] as? String)
-
-            }
-        }
-
-        if let auth_token = kvpairs["access_token"],
-            let patron_info = kvpairs["patron_info"]
-        {
-            if let patronJson = patron_info.replacingOccurrences(of: "+", with: " ").removingPercentEncoding?.parseJSONString
-            {
-                
-            }
-        }
-    }
-
-
 }
 
 extension NSString {

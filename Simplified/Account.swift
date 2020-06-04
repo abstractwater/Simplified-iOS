@@ -57,54 +57,6 @@ private let accountSyncEnabledKey        = "NYPLAccountSyncEnabledKey"
       return authType == .oauthIntermediary
     }
 
-    enum CodingKeys: String, CodingKey {
-      case authType
-      case authPasscodeLength
-      case patronIDKeyboard
-      case pinKeyboard
-      case patronIDLabel
-      case pinLabel
-      case supportsBarcodeScanner
-      case supportsBarcodeDisplay
-      case coppaUnderUrl
-      case coppaOverUrl
-      case oauthIntermediaryUrl
-      case methodDescription
-    }
-
-    required init(from decoder: Decoder) throws {
-      let values = try decoder.container(keyedBy: CodingKeys.self)
-
-      authType = try values.decode(AuthType.self, forKey: .authType)
-      authPasscodeLength = try values.decode(UInt.self, forKey: .authPasscodeLength)
-      patronIDKeyboard = try values.decode(LoginKeyboard.self, forKey: .patronIDKeyboard)
-      pinKeyboard = try values.decode(LoginKeyboard.self, forKey: .pinKeyboard)
-      patronIDLabel = try values.decodeIfPresent(String.self, forKey: .patronIDLabel)
-      pinLabel = try values.decodeIfPresent(String.self, forKey: .pinLabel)
-      supportsBarcodeScanner = try values.decode(Bool.self, forKey: .supportsBarcodeScanner)
-      supportsBarcodeDisplay = try values.decode(Bool.self, forKey: .supportsBarcodeDisplay)
-      coppaUnderUrl = try values.decodeIfPresent(URL.self, forKey: .coppaUnderUrl)
-      coppaOverUrl = try values.decodeIfPresent(URL.self, forKey: .coppaOverUrl)
-      oauthIntermediaryUrl = try values.decodeIfPresent(URL.self, forKey: .oauthIntermediaryUrl)
-      methodDescription = try values.decodeIfPresent(String.self, forKey: .methodDescription)
-    }
-
-    func encode(to encoder: Encoder) throws {
-      var container = encoder.container(keyedBy: CodingKeys.self)
-      try container.encode(authType, forKey: .authType)
-      try container.encode(authPasscodeLength, forKey: .authPasscodeLength)
-      try container.encode(patronIDKeyboard, forKey: .patronIDKeyboard)
-      try container.encode(pinKeyboard, forKey: .pinKeyboard)
-      try container.encode(patronIDLabel, forKey: .patronIDLabel)
-      try container.encode(pinLabel, forKey: .pinLabel)
-      try container.encode(supportsBarcodeScanner, forKey: .supportsBarcodeScanner)
-      try container.encode(supportsBarcodeDisplay, forKey: .supportsBarcodeDisplay)
-      try container.encode(coppaUnderUrl, forKey: .coppaUnderUrl)
-      try container.encode(coppaOverUrl, forKey: .coppaOverUrl)
-      try container.encode(oauthIntermediaryUrl, forKey: .oauthIntermediaryUrl)
-      try container.encode(methodDescription, forKey: .methodDescription)
-    }
-
     func encode(with coder: NSCoder) {
       let jsonEncoder = JSONEncoder()
       guard let data = try? jsonEncoder.encode(self) else { return }

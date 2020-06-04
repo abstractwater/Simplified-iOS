@@ -383,18 +383,30 @@ private enum StorageKey: String {
   }
     
   // MARK: - Remove
-  func removeAll() {
+  func removeBarcodeAndPIN() {
     keychainTransaction.perform {
       _credentials.write(nil)
       _authorizationIdentifier.write(nil)
+
+      // remove legacy, just in case
+      _barcode.write(nil)
+      _pin.write(nil)
+      _authToken.write(nil)
+
+      notifyAccountDidChange()
+    }
+  }
+
+  func removeAll() {
+    keychainTransaction.perform {
       _adobeToken.write(nil)
       _patron.write(nil)
-      _authToken.write(nil)
       _adobeVendor.write(nil)
       _provider.write(nil)
       _userID.write(nil)
       _deviceID.write(nil)
+
+      removeBarcodeAndPIN()
     }
-    notifyAccountDidChange()
   }
 }

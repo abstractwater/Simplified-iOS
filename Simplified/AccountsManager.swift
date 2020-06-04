@@ -72,8 +72,11 @@ private let prodUrlHash = prodUrl.absoluteString.md5().base64EncodedStringUrlSaf
       object: nil
     )
 
-    DispatchQueue.main.async {
-        self.loadCatalogs(completion: {_ in })
+    // It needs to be done asynchronously, so that init returns prior to calling it
+    // Otherwise it would try to access itself before intialization is finished
+    // Network executor will try to access shared accounts manager, as it needs it to get headers data
+    OperationQueue.current?.underlyingQueue?.async {
+      self.loadCatalogs(completion: {_ in })
     }
   }
   

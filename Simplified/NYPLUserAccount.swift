@@ -323,7 +323,7 @@ private enum StorageKey: String {
     
   @objc(setAdobeToken:patron:)
   func setAdobeToken(_ token: String, patron: [String : Any]) {
-    keychainTransaction.write {
+    keychainTransaction.perform {
       _adobeToken.write(token)
       _patron.write(patron)
     }
@@ -384,7 +384,7 @@ private enum StorageKey: String {
     
   // MARK: - Remove
   func removeAll() {
-    keychainTransaction.write {
+    keychainTransaction.perform {
       _credentials.write(nil)
       _authorizationIdentifier.write(nil)
       _adobeToken.write(nil)

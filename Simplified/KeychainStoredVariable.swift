@@ -45,7 +45,7 @@ class KeychainVariable<VariableType> {
   }
 
   func safeWrite(_ newValue: VariableType?) {
-    transaction.write {
+    transaction.perform {
       write(newValue)
     }
   }
@@ -89,7 +89,7 @@ class KeychainCodableVariable<VariableType: Codable> {
   }
 
   func safeWrite(_ newValue: VariableType?) {
-    transaction.write {
+    transaction.perform {
       write(newValue)
     }
   }
@@ -102,7 +102,7 @@ class KeychainVariableTransaction {
     self.accountInfoLock = accountInfoLock
   }
 
-  func write(transaction: () -> Void) {
+  func perform(operations: () -> Void) {
     guard NYPLKeychain.shared() != nil else { return }
 
     accountInfoLock.lock()
@@ -110,6 +110,6 @@ class KeychainVariableTransaction {
       accountInfoLock.unlock()
     }
 
-    transaction()
+    operations()
   }
 }

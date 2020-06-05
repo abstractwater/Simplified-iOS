@@ -39,20 +39,27 @@ private enum StorageKey: String {
   private var libraryUUID: String? {
     didSet {
       guard libraryUUID != oldValue else { return }
-      _authorizationIdentifier.key = StorageKey.authorizationIdentifier.keyForLibrary(uuid: libraryUUID)
-      _adobeToken.key = StorageKey.adobeToken.keyForLibrary(uuid: libraryUUID)
-      _licensor.key = StorageKey.licensor.keyForLibrary(uuid: libraryUUID)
-      _patron.key = StorageKey.patron.keyForLibrary(uuid: libraryUUID)
-      _adobeVendor.key = StorageKey.adobeVendor.keyForLibrary(uuid: libraryUUID)
-      _provider.key = StorageKey.provider.keyForLibrary(uuid: libraryUUID)
-      _userID.key = StorageKey.userID.keyForLibrary(uuid: libraryUUID)
-      _deviceID.key = StorageKey.deviceID.keyForLibrary(uuid: libraryUUID)
-      _credentials.key = StorageKey.credentials.keyForLibrary(uuid: libraryUUID)
-      _authDefinition.key = StorageKey.authDefinition.keyForLibrary(uuid: libraryUUID)
+      let variables: [StorageKey: Keyable] = [
+        StorageKey.authorizationIdentifier: _authorizationIdentifier,
+        StorageKey.adobeToken: _adobeToken,
+        StorageKey.licensor: _licensor,
+        StorageKey.patron: _patron,
+        StorageKey.adobeVendor: _adobeVendor,
+        StorageKey.provider: _provider,
+        StorageKey.userID: _userID,
+        StorageKey.deviceID: _deviceID,
+        StorageKey.credentials: _credentials,
+        StorageKey.authDefinition: _authDefinition,
 
-      _barcode.key = StorageKey.barcode.keyForLibrary(uuid: libraryUUID)
-      _pin.key = StorageKey.PIN.keyForLibrary(uuid: libraryUUID)
-      _authToken.key = StorageKey.authToken.keyForLibrary(uuid: libraryUUID)
+        // legacy
+        StorageKey.barcode: _barcode,
+        StorageKey.PIN: _pin,
+        StorageKey.authToken: _authToken,
+      ]
+
+      for (key, var value) in variables {
+        value.key = key.keyForLibrary(uuid: libraryUUID)
+      }
     }
   }
 

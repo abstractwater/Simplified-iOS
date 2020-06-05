@@ -144,7 +144,7 @@ extension NYPLNetworkExecutor {
     ///   - reqURL: URL of the resource to GET.
     ///   - completion: Always called when the resource is either fetched from
     /// the network or from the cache.
-    @objc func resolve(_ request: URLRequest,
+    @objc func execute(_ request: URLRequest,
                    completion: @escaping (_ result: Data?, _ response: URLResponse?,  _ error: Error?) -> Void) -> URLSessionDataTask {
       let req = NYPLNetworkExecutor.bearerAuthorized(request: request)
       let completionWrapper: (_ result: NYPLResult<Data>) -> Void = { result in

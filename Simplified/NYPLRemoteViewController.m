@@ -63,7 +63,7 @@
   [NSTimer scheduledTimerWithTimeInterval: activityLabelTimer target: self
                                  selector: @selector(addActivityIndicatorLabel:) userInfo: nil repeats: NO];
 
-  self.dataTask = [NYPLNetworkExecutor.shared resolve:request
+  self.dataTask = [NYPLNetworkExecutor.shared execute:request
                            completion:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
 
     dispatch_async(dispatch_get_main_queue(), ^{

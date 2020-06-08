@@ -109,8 +109,19 @@ private enum StorageKey: String {
         // try to load legacy values
         if let barcode = legacyBarcode, let pin = legacyPin {
           credentials = .barcodeAndPin(barcode: barcode, pin: pin)
+
+          keychainTransaction.perform {
+            _credentials.write(credentials)
+            _barcode.write(nil)
+            _pin.write(nil)
+          }
         } else if let authToken = legacyAuthToken {
           credentials = .token(authToken: authToken)
+
+          keychainTransaction.perform {
+            _credentials.write(credentials)
+            _authToken.write(nil)
+          }
         }
       }
 

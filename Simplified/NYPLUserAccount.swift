@@ -38,7 +38,8 @@ private enum StorageKey: String {
     
   private var libraryUUID: String? {
     didSet {
-      guard libraryUUID != oldValue else { return }
+      guard (libraryUUID ?? "") != (oldValue ?? "") else { return }
+
       let variables: [StorageKey: Keyable] = [
         StorageKey.authorizationIdentifier: _authorizationIdentifier,
         StorageKey.adobeToken: _adobeToken,

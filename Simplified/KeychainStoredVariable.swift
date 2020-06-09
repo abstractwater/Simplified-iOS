@@ -37,6 +37,11 @@ class KeychainVariable<VariableType>: Keyable {
   }
 
   func read() -> VariableType? {
+
+    if key.contains("NYPLAccountBarcode") {
+      print("szyjso accessing \(alreadyInited) \(key)")
+    }
+    
     // If currently cached value is valid, return from cache
     guard !alreadyInited else { return cachedValue }
 

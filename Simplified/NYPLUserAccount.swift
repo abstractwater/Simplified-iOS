@@ -38,7 +38,12 @@ private enum StorageKey: String {
     
   private var libraryUUID: String? {
     didSet {
-      guard (libraryUUID ?? "") != (oldValue ?? "") else { return }
+      guard (libraryUUID ?? "") != (oldValue ?? "") else {
+        print("szyjson blocked \(_barcode.key) -> \(StorageKey.barcode.keyForLibrary(uuid: libraryUUID))")
+        return
+      }
+
+      print("szyjson passed \(_barcode.key) -> \(StorageKey.barcode.keyForLibrary(uuid: libraryUUID))")
 
       let variables: [StorageKey: Keyable] = [
         StorageKey.authorizationIdentifier: _authorizationIdentifier,
